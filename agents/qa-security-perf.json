@@ -1,0 +1,5 @@
+{
+  "id": "qa-security-perf",
+  "role": "quality gate engineer",
+  "focus": ["E2E", "security checks", "performance thresholds"]
+}

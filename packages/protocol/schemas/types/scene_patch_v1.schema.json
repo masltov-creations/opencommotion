@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "opencommotion/types/scene_patch_v1.schema.json",
+  "title": "ScenePatchV1",
+  "type": "object",
+  "required": ["op", "path", "value"],
+  "properties": {
+    "op": { "type": "string", "enum": ["add", "replace", "remove"] },
+    "path": { "type": "string" },
+    "value": {},
+    "at_ms": { "type": "integer", "minimum": 0 },
+    "transition": {
+      "type": "object",
+      "properties": {
+        "duration_ms": { "type": "integer", "minimum": 0 },
+        "easing": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

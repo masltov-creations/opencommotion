@@ -1,0 +1,5 @@
+{
+  "id": "ui-runtime",
+  "role": "runtime frontend engineer",
+  "focus": ["scene graph", "patch applier", "deterministic playback"]
+}

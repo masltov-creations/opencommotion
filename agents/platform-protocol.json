@@ -1,0 +1,5 @@
+{
+  "id": "platform-protocol",
+  "role": "schema architect",
+  "focus": ["event schemas", "type versioning", "compatibility"]
+}

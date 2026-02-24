@@ -1,0 +1,5 @@
+{
+  "id": "api-gateway",
+  "role": "gateway engineer",
+  "focus": ["REST API", "WebSocket", "session envelope"]
+}

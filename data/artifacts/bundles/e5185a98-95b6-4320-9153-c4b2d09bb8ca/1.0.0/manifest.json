@@ -1,0 +1,14 @@
+{
+  "artifact_id": "e5185a98-95b6-4320-9153-c4b2d09bb8ca",
+  "version": "1.0.0",
+  "title": "Moonwalk Demo",
+  "summary": "test save",
+  "tags": [
+    "moonwalk",
+    "demo"
+  ],
+  "scene_entrypoint": "scene/entry.scene.json",
+  "assets": [],
+  "saved_by": "smoke",
+  "saved_at": "2026-02-24T05:16:01.582755+00:00"
+}

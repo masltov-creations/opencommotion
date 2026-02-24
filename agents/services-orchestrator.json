@@ -1,0 +1,5 @@
+{
+  "id": "services-orchestrator",
+  "role": "orchestrator engineer",
+  "focus": ["fanout", "timeline coordination", "agent turn merge"]
+}

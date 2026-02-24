@@ -1,0 +1,15 @@
+{
+  "name": "opencommotion",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/ui"
+  ],
+  "scripts": {
+    "dev": "bash scripts/dev_up.sh",
+    "dev:down": "bash scripts/dev_down.sh",
+    "ui:dev": "npm --workspace @opencommotion/ui run dev",
+    "ui:build": "npm --workspace @opencommotion/ui run build",
+    "ui:test": "npm --workspace @opencommotion/ui run test"
+  }
+}

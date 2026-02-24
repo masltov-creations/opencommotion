@@ -1,0 +1,5 @@
+{
+  "id": "voice-stt",
+  "role": "speech recognition engineer",
+  "focus": ["streaming STT", "partial/final transcript", "latency"]
+}

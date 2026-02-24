@@ -1,0 +1,5 @@
+{
+  "id": "agent-text",
+  "role": "reasoning output engineer",
+  "focus": ["precision", "chunked text", "citation slots"]
+}

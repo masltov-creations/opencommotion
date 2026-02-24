@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Node
+node_modules/
+apps/ui/node_modules/
+apps/ui/dist/
+
+# Env / secrets
+.env
+.env.local
+
+# Runtime state
+runtime/logs/
+runtime/agent-runs/*.pid
+runtime/agent-runs/*.tmp
+
+# Data artifacts
+services/artifact_registry/data/
+*.sqlite3
+*.db
+
+# OS/editor
+.DS_Store
+.vscode/

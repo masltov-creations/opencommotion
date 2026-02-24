@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "opencommotion/types/brush_stroke_v1.schema.json",
+  "title": "BrushStrokeV1",
+  "type": "object",
+  "required": ["stroke_id", "kind", "params", "timing"],
+  "properties": {
+    "stroke_id": { "type": "string" },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "spawnCharacter",
+        "animateMoonwalk",
+        "orbitGlobe",
+        "ufoLandingBeat",
+        "drawAdoptionCurve",
+        "drawPieSaturation",
+        "annotateInsight",
+        "sceneMorph"
+      ]
+    },
+    "params": { "type": "object" },
+    "timing": {
+      "type": "object",
+      "required": ["start_ms", "duration_ms", "easing"],
+      "properties": {
+        "start_ms": { "type": "integer", "minimum": 0 },
+        "duration_ms": { "type": "integer", "minimum": 0 },
+        "easing": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "style_refs": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}

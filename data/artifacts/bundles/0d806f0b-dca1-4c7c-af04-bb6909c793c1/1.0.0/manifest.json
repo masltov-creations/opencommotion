@@ -1,0 +1,14 @@
+{
+  "artifact_id": "0d806f0b-dca1-4c7c-af04-bb6909c793c1",
+  "version": "1.0.0",
+  "title": "D drive E2E",
+  "summary": "from d drive",
+  "tags": [
+    "d-drive",
+    "e2e"
+  ],
+  "scene_entrypoint": "scene/entry.scene.json",
+  "assets": [],
+  "saved_by": "e2e",
+  "saved_at": "2026-02-24T05:38:11.384877+00:00"
+}

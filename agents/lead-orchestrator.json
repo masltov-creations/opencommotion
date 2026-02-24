@@ -1,0 +1,6 @@
+{
+  "id": "lead-orchestrator",
+  "role": "program coordinator",
+  "focus": ["workflow DAG", "merge gate", "risk control"],
+  "quality_bar": ["tests", "security", "performance"]
+}

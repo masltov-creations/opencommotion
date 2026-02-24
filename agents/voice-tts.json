@@ -1,0 +1,5 @@
+{
+  "id": "voice-tts",
+  "role": "speech synthesis engineer",
+  "focus": ["natural TTS", "timing marks", "playback sync"]
+}

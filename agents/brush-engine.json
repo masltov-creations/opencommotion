@@ -1,0 +1,5 @@
+{
+  "id": "brush-engine",
+  "role": "compiler engineer",
+  "focus": ["intent compiler", "scene patches", "determinism"]
+}

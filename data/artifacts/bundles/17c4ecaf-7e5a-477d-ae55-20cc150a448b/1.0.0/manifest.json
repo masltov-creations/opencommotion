@@ -1,0 +1,13 @@
+{
+  "artifact_id": "17c4ecaf-7e5a-477d-ae55-20cc150a448b",
+  "version": "1.0.0",
+  "title": "Fresh Run",
+  "summary": "fresh rebuild",
+  "tags": [
+    "fresh"
+  ],
+  "scene_entrypoint": "scene/entry.scene.json",
+  "assets": [],
+  "saved_by": "smoke",
+  "saved_at": "2026-02-24T05:17:35.948828+00:00"
+}

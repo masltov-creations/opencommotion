@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "opencommotion/events/artifact_saved.schema.json",
+  "allOf": [
+    { "$ref": "base_event.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "artifact.saved" },
+        "payload": {
+          "type": "object",
+          "required": ["artifact_id", "title", "saved_by"],
+          "properties": {
+            "artifact_id": { "type": "string" },
+            "title": { "type": "string" },
+            "saved_by": { "type": "string" },
+            "tags": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    }
+  ]
+}

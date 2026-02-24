@@ -1,0 +1,38 @@
+{
+  "workflow_name": "opencommotion-alpha-foundation",
+  "created_at": "2026-02-24T00:00:00Z",
+  "waves": [
+    {
+      "name": "wave-0-foundation",
+      "parallel_tasks": [
+        "platform-protocol",
+        "api-gateway",
+        "services-orchestrator",
+        "ui-runtime",
+        "ui-motion",
+        "voice-stt",
+        "voice-tts",
+        "brush-engine",
+        "artifact-registry"
+      ]
+    },
+    {
+      "name": "wave-1-integration",
+      "depends_on": ["wave-0-foundation"],
+      "parallel_tasks": [
+        "agent-text",
+        "agent-visual",
+        "qa-security-perf",
+        "docs-oss"
+      ]
+    }
+  ],
+  "merge_gate": {
+    "required": [
+      "tests_pass",
+      "schema_validation_pass",
+      "security_checks_pass",
+      "performance_thresholds_pass"
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "opencommotion/events/base_event.schema.json",
+  "title": "BaseEvent",
+  "type": "object",
+  "required": ["event_type", "session_id", "turn_id", "timestamp", "payload"],
+  "properties": {
+    "event_type": { "type": "string" },
+    "session_id": { "type": "string" },
+    "turn_id": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "actor": { "type": "string" },
+    "payload": { "type": "object" }
+  },
+  "additionalProperties": true
+}

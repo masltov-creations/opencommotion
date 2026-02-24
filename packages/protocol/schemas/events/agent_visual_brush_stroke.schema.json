@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "opencommotion/events/agent_visual_brush_stroke.schema.json",
+  "allOf": [
+    { "$ref": "base_event.schema.json" },
+    {
+      "type": "object",
+      "properties": {
+        "event_type": { "const": "agent.visual.brush.stroke" },
+        "payload": { "$ref": "../types/brush_stroke_v1.schema.json" }
+      }
+    }
+  ]
+}
