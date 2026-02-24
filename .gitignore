@@ -8,6 +8,8 @@ __pycache__/
 node_modules/
 apps/ui/node_modules/
 apps/ui/dist/
+playwright-report/
+test-results/
 
 # Env / secrets
 .env
@@ -20,6 +22,7 @@ runtime/agent-runs/*.tmp
 
 # Data artifacts
 services/artifact_registry/data/
+data/audio/
 *.sqlite3
 *.db
 

@@ -1,0 +1,51 @@
+{
+  "id": "skill-artifact-semantic-recall",
+  "owner_agents": [
+    "artifact-registry",
+    "platform-protocol",
+    "api-gateway",
+    "qa-security-perf",
+    "docs-oss"
+  ],
+  "objective": "Add embedding-backed artifact indexing and semantic recall while preserving existing lexical search behavior.",
+  "depends_on": [
+    "skill-schema-validation"
+  ],
+  "target_window": "2026-03-01 to 2026-03-05",
+  "scope_in": [
+    "Generate embeddings for saved artifacts",
+    "Persist vector data and metadata for recall ranking",
+    "Add semantic query endpoint and hybrid lexical+semantic ranking mode",
+    "Add deterministic fallback path if embeddings unavailable",
+    "Add tests for relevance, ranking stability, and archive/pin interactions"
+  ],
+  "scope_out": [
+    "Cross-project federated artifact search",
+    "Distributed vector infrastructure"
+  ],
+  "implementation_checklist": [
+    "Choose local embedding backend and integration approach",
+    "Extend artifact persistence schema for vector index references",
+    "Implement semantic retrieval and ranking with tie-break rules",
+    "Expose API options for lexical, semantic, and hybrid search modes",
+    "Add integration tests for recall quality and deterministic ordering"
+  ],
+  "validation_commands": [
+    "make test",
+    "pytest -q -s tests/integration -k artifact"
+  ],
+  "acceptance_criteria": [
+    "Artifact recall returns semantically related results for non-exact queries",
+    "Ranking order is deterministic for identical inputs and index state",
+    "Lexical-only mode remains backward compatible"
+  ],
+  "handoff_artifacts": [
+    "artifact retrieval API contract update",
+    "embedding backend config and operational notes",
+    "tests showing semantic vs lexical behavior"
+  ],
+  "risks": [
+    "Embedding model quality inconsistency on small local hardware",
+    "Mitigation: pin tested model and provide deterministic fallback path"
+  ]
+}

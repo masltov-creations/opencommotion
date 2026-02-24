@@ -1,0 +1,47 @@
+{
+  "id": "skill-agent-orchestration-ops",
+  "owner_agents": [
+    "lead-orchestrator",
+    "services-orchestrator",
+    "platform-protocol",
+    "qa-security-perf",
+    "docs-oss"
+  ],
+  "objective": "Establish a consistent multi-agent execution protocol with shared context, lane ownership, and merge-gate discipline.",
+  "depends_on": [],
+  "target_window": "2026-02-24 to 2026-02-25",
+  "scope_in": [
+    "Define required context packet fields for all implementation waves",
+    "Define lane-ownership and handoff requirements for specialist agents",
+    "Define merge gate sequence and evidence requirements",
+    "Document blocker escalation and dependency update protocol"
+  ],
+  "scope_out": [
+    "Introducing new service APIs solely for coordination",
+    "Replacing existing runtime/agent-runs status file format"
+  ],
+  "implementation_checklist": [
+    "Document shared operating context packet template in docs",
+    "Document inter-agent orchestration protocol and single-writer lane model",
+    "Document role-specific best-ability operating guidance",
+    "Define start/mid/pre-merge/post-merge checkpoint cadence"
+  ],
+  "validation_commands": [
+    "python3 scripts/spawn_expert_agents.py",
+    "make test-all"
+  ],
+  "acceptance_criteria": [
+    "Agents can execute a wave with explicit ownership and no ambiguous responsibilities",
+    "Each merge candidate includes required handoff evidence",
+    "Docs clearly describe how agents coordinate and escalate blockers"
+  ],
+  "handoff_artifacts": [
+    "updated agent coordination docs",
+    "context packet template example",
+    "wave checkpoint checklist"
+  ],
+  "risks": [
+    "Coordination rules drift if not tied to merge gate behavior",
+    "Mitigation: lead-orchestrator enforces evidence requirements before merge"
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "id": "template-skill",
+  "owner_agents": [
+    "lead-orchestrator"
+  ],
+  "objective": "Replace with concrete outcome for this stream.",
+  "depends_on": [],
+  "target_window": "2026-02-24 to 2026-03-08",
+  "scope_in": [
+    "List included deliverable 1",
+    "List included deliverable 2"
+  ],
+  "scope_out": [
+    "List excluded item 1"
+  ],
+  "implementation_checklist": [
+    "Add task 1",
+    "Add task 2",
+    "Add task 3"
+  ],
+  "validation_commands": [
+    "make test",
+    "make test-ui"
+  ],
+  "acceptance_criteria": [
+    "Add objective pass condition 1",
+    "Add objective pass condition 2"
+  ],
+  "handoff_artifacts": [
+    "files-or-docs-generated",
+    "test-evidence-links-or-notes"
+  ],
+  "risks": [
+    "List major risk",
+    "List mitigation owner and strategy"
+  ]
+}

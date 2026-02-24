@@ -59,9 +59,11 @@ def test_full_e2e_turn_artifact_recall_and_ws_event(tmp_path, monkeypatch) -> No
         ws_event = ws.receive_json()
 
     assert ws_event["event_type"] == "gateway.event"
+    assert ws_event["session_id"] == turn["session_id"]
+    assert ws_event["turn_id"] == turn["turn_id"]
     assert ws_event["payload"]["turn_id"] == turn["turn_id"]
     assert ws_event["payload"]["text"] == turn["text"]
-    assert ws_event["payload"]["voice"]["segments"][0]["audio_uri"].startswith("memory://")
+    assert ws_event["payload"]["voice"]["segments"][0]["audio_uri"].startswith("/v1/audio/")
 
     save = client.post(
         "/v1/artifacts/save",

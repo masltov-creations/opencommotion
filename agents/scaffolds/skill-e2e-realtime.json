@@ -1,0 +1,56 @@
+{
+  "id": "skill-e2e-realtime",
+  "owner_agents": [
+    "qa-security-perf",
+    "api-gateway",
+    "services-orchestrator",
+    "ui-runtime",
+    "voice-stt",
+    "voice-tts"
+  ],
+  "objective": "Introduce true browser-level E2E coverage for typed and voice flows with artifact save/search/recall.",
+  "depends_on": [
+    "skill-schema-validation",
+    "skill-voice-production",
+    "skill-ui-patch-runtime",
+    "skill-artifact-semantic-recall"
+  ],
+  "target_window": "2026-03-04 to 2026-03-07",
+  "scope_in": [
+    "Stand up browser E2E runner and fixtures",
+    "Test typed prompt to visual/text/voice event completion",
+    "Test artifact save then lexical and semantic recall from UI",
+    "Test websocket disconnect/reconnect behavior",
+    "Integrate E2E suite into CI merge gates"
+  ],
+  "scope_out": [
+    "Cross-browser matrix expansion beyond baseline Chromium",
+    "Long-haul soak tests over multi-hour sessions"
+  ],
+  "implementation_checklist": [
+    "Add browser E2E framework and deterministic test harness",
+    "Create fixture data and reproducible audio test inputs",
+    "Write end-to-end tests for typed and voice turns",
+    "Write artifact lifecycle E2E tests including recall",
+    "Wire E2E command into CI workflow required checks"
+  ],
+  "validation_commands": [
+    "make test-all",
+    "npm run ui:build",
+    "npm run e2e"
+  ],
+  "acceptance_criteria": [
+    "Browser E2E suite passes on clean CI runner",
+    "At least one test validates complete typed and voice loop",
+    "At least one test validates artifact save and semantic recall from UI"
+  ],
+  "handoff_artifacts": [
+    "E2E test report and flake-rate notes",
+    "CI workflow updates and execution timings",
+    "fixture strategy document"
+  ],
+  "risks": [
+    "Flaky realtime assertions in websocket-heavy tests",
+    "Mitigation: event-id correlation and bounded explicit waits"
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "id": "skill-security-ops",
+  "owner_agents": [
+    "qa-security-perf",
+    "api-gateway",
+    "services-orchestrator",
+    "artifact-registry",
+    "lead-orchestrator"
+  ],
+  "objective": "Add baseline security and operational hardening required for release-candidate readiness.",
+  "depends_on": [
+    "skill-schema-validation",
+    "skill-voice-production",
+    "skill-artifact-semantic-recall"
+  ],
+  "target_window": "2026-03-05 to 2026-03-07",
+  "scope_in": [
+    "Input size and request timeout limits on gateway endpoints",
+    "Dependency and image vulnerability scanning in CI",
+    "Structured logging and correlation IDs across gateway/orchestrator",
+    "Basic health and readiness checks for all services",
+    "Performance thresholds for turn latency and patch apply time"
+  ],
+  "scope_out": [
+    "Full zero-trust platform deployment model",
+    "Advanced distributed tracing stack rollout"
+  ],
+  "implementation_checklist": [
+    "Define and enforce API payload limits and rate guardrails",
+    "Add security scanning commands to CI workflows",
+    "Standardize log format and correlation fields",
+    "Define baseline perf thresholds and fail CI on violations",
+    "Document operational troubleshooting steps"
+  ],
+  "validation_commands": [
+    "make lint",
+    "make test-all",
+    "npm audit --audit-level=high"
+  ],
+  "acceptance_criteria": [
+    "CI fails on critical security findings or threshold regressions",
+    "Runtime logs support tracing a request across services",
+    "Operational checks detect unavailable dependencies quickly"
+  ],
+  "handoff_artifacts": [
+    "security and performance gate definitions",
+    "updated CI workflow files",
+    "operations troubleshooting notes"
+  ],
+  "risks": [
+    "False positives from security tooling block release",
+    "Mitigation: maintain allowlist process with explicit expiry and owner"
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "run_id": "closeout-wave-01",
+  "lanes": [
+    {
+      "lane_id": "contracts",
+      "owner_agent": "platform-protocol",
+      "paths": [
+        "packages/protocol/**",
+        "services/gateway/app/schemas/**"
+      ],
+      "depends_on": []
+    },
+    {
+      "lane_id": "orchestration",
+      "owner_agent": "services-orchestrator",
+      "paths": [
+        "services/orchestrator/**"
+      ],
+      "depends_on": [
+        "contracts"
+      ]
+    },
+    {
+      "lane_id": "gateway",
+      "owner_agent": "api-gateway",
+      "paths": [
+        "services/gateway/**"
+      ],
+      "depends_on": [
+        "contracts",
+        "orchestration"
+      ]
+    },
+    {
+      "lane_id": "ui-runtime",
+      "owner_agent": "ui-runtime",
+      "paths": [
+        "apps/ui/**"
+      ],
+      "depends_on": [
+        "gateway"
+      ]
+    },
+    {
+      "lane_id": "voice",
+      "owner_agent": "voice-tts",
+      "paths": [
+        "services/agents/voice/**"
+      ],
+      "depends_on": [
+        "gateway"
+      ]
+    },
+    {
+      "lane_id": "artifact-memory",
+      "owner_agent": "artifact-registry",
+      "paths": [
+        "services/artifact_registry/**"
+      ],
+      "depends_on": [
+        "gateway"
+      ]
+    },
+    {
+      "lane_id": "quality-gates",
+      "owner_agent": "qa-security-perf",
+      "paths": [
+        "tests/**",
+        ".github/workflows/**"
+      ],
+      "depends_on": [
+        "contracts",
+        "orchestration",
+        "gateway",
+        "ui-runtime",
+        "voice",
+        "artifact-memory"
+      ]
+    },
+    {
+      "lane_id": "docs-release",
+      "owner_agent": "docs-oss",
+      "paths": [
+        "README.md",
+        "docs/**"
+      ],
+      "depends_on": [
+        "quality-gates"
+      ]
+    }
+  ]
+}

@@ -11,3 +11,4 @@ def test_orchestrate_response_shape() -> None:
     assert 'text' in payload
     assert 'visual_strokes' in payload
     assert 'voice' in payload
+    assert 'timeline' in payload

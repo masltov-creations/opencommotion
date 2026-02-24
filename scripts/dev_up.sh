@@ -3,7 +3,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-mkdir -p runtime/logs runtime/agent-runs data/artifacts/bundles
+mkdir -p runtime/logs runtime/agent-runs data/artifacts/bundles data/audio
 
 if [ ! -x .venv/bin/python ]; then
   python3 -m venv .venv

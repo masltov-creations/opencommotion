@@ -1,0 +1,51 @@
+{
+  "id": "skill-release-docs",
+  "owner_agents": [
+    "docs-oss",
+    "lead-orchestrator",
+    "qa-security-perf",
+    "platform-protocol"
+  ],
+  "objective": "Produce release-candidate documentation and onboarding assets aligned with the finalized implementation.",
+  "depends_on": [
+    "skill-e2e-realtime",
+    "skill-security-ops"
+  ],
+  "target_window": "2026-03-07 to 2026-03-08",
+  "scope_in": [
+    "Update architecture document to reflect final runtime behavior",
+    "Publish quickstart and troubleshooting runbook for clean-machine setup",
+    "Document API contracts and schema/version support policy",
+    "Document test strategy and required merge gates",
+    "Prepare release notes and known limitations"
+  ],
+  "scope_out": [
+    "Marketing site content",
+    "Non-technical product launch collateral"
+  ],
+  "implementation_checklist": [
+    "Refresh README and docs/ARCHITECTURE.md against final system behavior",
+    "Add RELEASE.md with setup, test, and demo commands",
+    "Add CONTRIBUTING.md quality gate expectations and branch workflow",
+    "Include examples for typed turn and voice turn usage",
+    "Record final closeout status in PROJECT.md"
+  ],
+  "validation_commands": [
+    "make test-all",
+    "npm run ui:build"
+  ],
+  "acceptance_criteria": [
+    "A new contributor can run setup and demo flows without tribal knowledge",
+    "Docs match current APIs and behavior with no placeholder sections",
+    "Release notes capture shipped scope and known constraints"
+  ],
+  "handoff_artifacts": [
+    "updated docs and release notes",
+    "final closeout checklist marked complete",
+    "project status update with release-candidate date"
+  ],
+  "risks": [
+    "Docs drift if implementation changes late in closeout",
+    "Mitigation: docs update is part of final merge gate, not post-merge task"
+  ]
+}

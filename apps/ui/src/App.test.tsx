@@ -6,6 +6,8 @@ import App from './App'
 
 function mockJsonResponse(payload: unknown): Response {
   return {
+    ok: true,
+    status: 200,
     json: async () => payload,
   } as Response
 }
@@ -21,8 +23,12 @@ describe('App', () => {
     fetchMock
       .mockResolvedValueOnce(
         mockJsonResponse({
+          session_id: 's1',
+          turn_id: 't1',
           text: 'OpenCommotion: moonwalk demo.',
+          voice: { voice: 'opencommotion-local', segments: [] },
           visual_patches: [{ op: 'add', path: '/actors/guide' }],
+          timeline: { duration_ms: 1200 },
         }),
       )
       .mockResolvedValueOnce(mockJsonResponse({ ok: true }))
@@ -63,7 +69,7 @@ describe('App', () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
-      'http://127.0.0.1:8000/v1/artifacts/search?q=moonwalk',
+      'http://127.0.0.1:8000/v1/artifacts/search?q=moonwalk&mode=hybrid',
     )
     await screen.findByText('Moonwalk Demo')
   })

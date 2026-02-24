@@ -28,6 +28,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
@@ -35,5 +38,17 @@ jobs:
         run: npm install
       - name: Run UI tests
         run: npm run ui:test
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Run browser E2E
+        run: |
+          set -euo pipefail
+          make dev
+          trap "make down" EXIT
+          for i in $(seq 1 45); do
+            curl -fsS http://127.0.0.1:8000/health >/dev/null && curl -fsS http://127.0.0.1:8001/health >/dev/null && break
+            sleep 1
+          done
+          npm run e2e
       - name: Build UI
         run: npm run ui:build

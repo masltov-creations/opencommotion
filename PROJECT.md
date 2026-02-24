@@ -72,3 +72,19 @@ Immediate next implementation wave:
 3. Add embedding-backed semantic artifact recall.
 4. Extend UI stage renderer from static SVG to patch-driven runtime.
 5. Add end-to-end tests for full typed + voice + artifact recall loop.
+
+Closeout execution package:
+- Master closeout plan: `docs/CLOSEOUT_PLAN.md`
+- Skill scaffolds: `agents/scaffolds/`
+- Closeout workflow DAG: `runtime/orchestrator/workflow_opencommotion_v2_closeout.json`
+
+Closeout implementation progress (2026-02-24):
+- Completed:
+  - Gateway/orchestrator schema validation integration
+  - Voice transcribe/synthesize API endpoints and local audio artifact serving
+  - Artifact semantic/hybrid recall and pin/archive API endpoints
+  - Patch-driven UI runtime with websocket event ingestion and playback controls
+  - Expanded backend integration tests, UI behavior tests, and browser E2E spec
+- Remaining environment dependency:
+  - Install Playwright system libs on local machine for browser E2E execution:
+    - `npx playwright install --with-deps chromium`

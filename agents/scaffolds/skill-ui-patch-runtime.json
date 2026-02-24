@@ -1,0 +1,52 @@
+{
+  "id": "skill-ui-patch-runtime",
+  "owner_agents": [
+    "ui-runtime",
+    "ui-motion",
+    "brush-engine",
+    "api-gateway",
+    "qa-security-perf"
+  ],
+  "objective": "Replace static visual shell with deterministic patch-driven runtime synchronized to text and voice timeline.",
+  "depends_on": [
+    "skill-schema-validation",
+    "skill-voice-production"
+  ],
+  "target_window": "2026-02-28 to 2026-03-04",
+  "scope_in": [
+    "Implement stage state container and patch applier",
+    "Subscribe UI to websocket events and process turn envelopes",
+    "Synchronize patch playback timing with text/voice timeline metadata",
+    "Add runtime controls for play, pause, seek, and replay of latest turn",
+    "Add UI tests for patch application and realtime update behavior"
+  ],
+  "scope_out": [
+    "Advanced 3D renderer migration",
+    "Complex authoring tools for scene editing"
+  ],
+  "implementation_checklist": [
+    "Define runtime scene state model for applied patches",
+    "Implement deterministic patch reducer and replay mechanism",
+    "Replace static SVG placeholders with state-driven rendering components",
+    "Handle websocket reconnect and duplicate-event suppression",
+    "Add UI tests for timeline and rendering state transitions"
+  ],
+  "validation_commands": [
+    "make test-ui",
+    "npm run ui:build"
+  ],
+  "acceptance_criteria": [
+    "UI render output changes based on applied patches from live events",
+    "Patch replay is deterministic for same turn payload",
+    "UI tests verify run-turn, event ingestion, and patch playback behavior"
+  ],
+  "handoff_artifacts": [
+    "runtime patch state model note",
+    "UI test coverage report for runtime and motion logic",
+    "demo recording of realtime patch-driven stage"
+  ],
+  "risks": [
+    "Timing drift between visual and voice playback",
+    "Mitigation: single timeline clock source and bounded drift corrections"
+  ]
+}

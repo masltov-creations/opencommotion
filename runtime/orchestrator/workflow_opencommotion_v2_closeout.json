@@ -1,0 +1,62 @@
+{
+  "workflow_name": "opencommotion-closeout-v2",
+  "created_at": "2026-02-24T00:00:00Z",
+  "goals": [
+    "production voice pipeline",
+    "schema-enforced contracts",
+    "patch-driven runtime UI",
+    "semantic artifact recall",
+    "release-grade e2e and hardening"
+  ],
+  "waves": [
+    {
+      "name": "wave-0-contract-and-voice-foundation",
+      "parallel_tasks": [
+        "skill-schema-validation",
+        "skill-voice-production"
+      ]
+    },
+    {
+      "name": "wave-1-runtime-and-memory",
+      "depends_on": [
+        "wave-0-contract-and-voice-foundation"
+      ],
+      "parallel_tasks": [
+        "skill-ui-patch-runtime",
+        "skill-artifact-semantic-recall"
+      ]
+    },
+    {
+      "name": "wave-2-quality-hardening",
+      "depends_on": [
+        "wave-1-runtime-and-memory"
+      ],
+      "parallel_tasks": [
+        "skill-e2e-realtime",
+        "skill-security-ops"
+      ]
+    },
+    {
+      "name": "wave-3-release-closeout",
+      "depends_on": [
+        "wave-2-quality-hardening"
+      ],
+      "parallel_tasks": [
+        "skill-release-docs"
+      ]
+    }
+  ],
+  "merge_gate": {
+    "required": [
+      "tests_pass",
+      "schema_validation_pass",
+      "security_checks_pass",
+      "performance_thresholds_pass",
+      "docs_release_pass"
+    ],
+    "commands": [
+      "make test-all",
+      "npm run ui:build"
+    ]
+  }
+}

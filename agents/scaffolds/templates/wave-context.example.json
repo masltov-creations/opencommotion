@@ -1,0 +1,35 @@
+{
+  "run_id": "closeout-wave-01",
+  "objective": "Ship stable typed+voice+visual turn flow with deterministic playback.",
+  "scope_in": [
+    "Schema-safe event envelopes",
+    "Reliable orchestrate + websocket correlation",
+    "UI patch playback and artifact lifecycle"
+  ],
+  "scope_out": [
+    "Cross-region deployment",
+    "Long-haul soak tests over 24h"
+  ],
+  "interfaces_touched": [
+    "/v1/orchestrate",
+    "/v1/events/ws",
+    "/v1/brush/compile",
+    "/v1/artifacts/*"
+  ],
+  "constraints": [
+    "No schema-breaking changes without protocol versioning",
+    "Patch ordering remains deterministic by at_ms",
+    "No merge without test evidence"
+  ],
+  "quality_gates": [
+    "make test-all",
+    "make test-e2e",
+    "npm run ui:build"
+  ],
+  "handoff_required": [
+    "changed file list",
+    "behavior delta summary",
+    "validation output",
+    "open risks and owner"
+  ]
+}

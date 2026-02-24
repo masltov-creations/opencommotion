@@ -10,6 +10,10 @@
     "dev:down": "bash scripts/dev_down.sh",
     "ui:dev": "npm --workspace @opencommotion/ui run dev",
     "ui:build": "npm --workspace @opencommotion/ui run build",
-    "ui:test": "npm --workspace @opencommotion/ui run test"
+    "ui:test": "npm --workspace @opencommotion/ui run test",
+    "e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
   }
 }

@@ -1,0 +1,52 @@
+{
+  "id": "skill-voice-production",
+  "owner_agents": [
+    "voice-stt",
+    "voice-tts",
+    "api-gateway",
+    "services-orchestrator",
+    "ui-runtime",
+    "qa-security-perf"
+  ],
+  "objective": "Replace placeholder STT/TTS with local production engines and expose a complete voice request-response path.",
+  "depends_on": [
+    "skill-schema-validation"
+  ],
+  "target_window": "2026-02-25 to 2026-03-01",
+  "scope_in": [
+    "Integrate local STT backend with partial/final transcript events",
+    "Integrate local TTS backend that emits playable audio artifacts with timing marks",
+    "Add gateway endpoints for audio input and transcript/voice output retrieval",
+    "Propagate voice timing metadata through orchestrator and gateway event payloads",
+    "Add UI record/playback controls and basic failure states"
+  ],
+  "scope_out": [
+    "Cloud-only voice providers",
+    "Multilingual optimization beyond baseline English closeout target"
+  ],
+  "implementation_checklist": [
+    "Select local STT and TTS engine implementations and codify config",
+    "Replace placeholder workers in services/agents/voice/*",
+    "Add voice endpoints in gateway and orchestrator pipeline contracts",
+    "Store generated audio artifacts with lifecycle policy",
+    "Add integration tests for voice flow success and failure paths"
+  ],
+  "validation_commands": [
+    "make test",
+    "pytest -q -s tests/integration -k voice"
+  ],
+  "acceptance_criteria": [
+    "Audio input can be transcribed and routed into turn orchestration",
+    "TTS output includes timing marks and playable artifact URIs",
+    "Voice path is covered by automated integration tests"
+  ],
+  "handoff_artifacts": [
+    "voice engine configuration and fallback behavior notes",
+    "gateway/orchestrator voice API docs",
+    "integration test evidence for typed+voice parity"
+  ],
+  "risks": [
+    "Latency spikes from local model inference",
+    "Mitigation: set bounded model sizes and stream partial output"
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "id": "skill-schema-validation",
+  "owner_agents": [
+    "platform-protocol",
+    "api-gateway",
+    "services-orchestrator",
+    "qa-security-perf"
+  ],
+  "objective": "Enforce protocol schemas for ingress and emitted events so invalid contracts fail fast with stable error responses.",
+  "depends_on": [],
+  "target_window": "2026-02-24 to 2026-02-28",
+  "scope_in": [
+    "Load and cache JSON schemas from packages/protocol/schemas",
+    "Validate gateway request models and orchestrator output envelope against schema contracts",
+    "Return deterministic 4xx validation errors with machine-readable fields",
+    "Add regression tests for valid/invalid payloads"
+  ],
+  "scope_out": [
+    "Major schema redesign",
+    "Breaking schema version bump after closeout freeze"
+  ],
+  "implementation_checklist": [
+    "Create schema validation module for gateway and orchestrator",
+    "Map endpoint request/response payloads to protocol schema IDs",
+    "Add standardized error envelope for validation failures",
+    "Add unit tests for schema resolver and validator cache",
+    "Add integration tests for rejected invalid payloads"
+  ],
+  "validation_commands": [
+    "make test",
+    "pytest -q -s tests/integration -k schema"
+  ],
+  "acceptance_criteria": [
+    "Invalid API payloads are rejected with deterministic error codes and field paths",
+    "Emitted gateway event payload validates against canonical schema set",
+    "All schema validation tests pass in CI"
+  ],
+  "handoff_artifacts": [
+    "services/gateway/app/* schema validation integration",
+    "services/orchestrator/app/* schema validation integration",
+    "tests covering valid and invalid schema behavior",
+    "short protocol mapping note in docs"
+  ],
+  "risks": [
+    "Schema drift between protocol files and runtime payload shape",
+    "Mitigation: protocol owner reviews all endpoint mappings before merge"
+  ]
+}
