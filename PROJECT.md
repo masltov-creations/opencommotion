@@ -19,6 +19,20 @@ Primary objectives:
 - Stable integration surface for external agents and consumers.
 - Production-ready operations path for Linux VM deployment.
 
+Visual intelligence v2 plan:
+- Canonical plan doc: `docs/VISUAL_INTELLIGENCE_PLAN.md`
+- Tool enhancement tracker: `docs/TOOL_ENHANCEMENT_BACKLOG.md`
+- Execution model: parallel lanes (contract/schema, compiler/runtime, UI rendering, QA, docs).
+- Base constituent parts (generic/reusable):
+  - actors
+  - fx
+  - materials
+  - environment
+  - camera
+  - render mode (`2d`/`3d`)
+- Stretch scenario requirements are tracked in the same plan (not separate):
+  - Scenario D fish-in-bowl cinematic (`D-2D`, `D-3D`) with shader guardrails and deterministic timing.
+
 Implemented baseline (available now):
 - Gateway (`services/gateway/app/main.py`)
   - REST + websocket event fanout
@@ -66,6 +80,9 @@ Progress checklist:
 - [x] CI + test coverage updates for new surfaces
 - [x] Automated restart-recovery and 10-session concurrency gate coverage
 - [x] Provider adapter execution tests for Codex/OpenClaw paths
+- [x] Generic visual primitive contract lane (`setRenderMode`, `spawnSceneActor`, `setActorMotion`, `emitFx`, etc.)
+- [x] Stretch Scenario D baseline implementation (fish bowl cinematic primitives + tests)
+- [x] Prompt-probe required scenario baseline (A/B/C/D path expectations pass with seed set)
 - [ ] Long-haul soak/recovery evidence in production-like environment
 - [ ] Final production readiness sign-off
 
@@ -79,6 +96,17 @@ Active tasks:
 3. Final release package:
  - publish release notes + version tag
  - capture final acceptance evidence bundle
+4. Visual v2 closeout:
+ - certify Scenario A/B/C in both 2D and 3D tracks under v2 contract
+ - certify Scenario D (`D-2D`, `D-3D`) as stretch gate when enabled
+ - complete GPU/shader runtime hardening and perf budget gates
+5. Tool enhancement governance:
+ - keep `docs/TOOL_ENHANCEMENT_BACKLOG.md` current for any discovered blocker/degradation
+ - require acceptance evidence link before marking tool enhancements done
+6. Prompt probe triage loop:
+ - run `python3 scripts/prompt_compat_probe.py --inprocess --seed 23`
+ - triage required failures as bugs and exploratory misses as enhancement candidates
+ - update `docs/TOOL_ENHANCEMENT_BACKLOG.md` with status + acceptance criteria
 
 Validation commands:
 - `python3 scripts/opencommotion.py test`
@@ -94,6 +122,7 @@ Execution docs:
 - `docs/AGENT_CONNECTION.md`
 - `docs/USAGE_PATTERNS.md`
 - `docs/ARCHITECTURE.md`
+- `docs/TOOL_ENHANCEMENT_BACKLOG.md`
 - `RELEASE.md`
 - `CONTRIBUTING.md`
 
@@ -115,3 +144,7 @@ Change log:
 - 2026-02-25: Added automated restart-recovery + 10-session run-manager concurrency tests.
 - 2026-02-25: Added provider execution tests for `codex-cli`, `openclaw-cli`, and `openclaw-openai`.
 - 2026-02-25: Added websocket auth enforcement tests and run-control lifecycle coverage.
+- 2026-02-25: Added visual-intelligence-v2 plan doc and generic visual primitive lane, including fish-bowl stretch scenario requirements and tests.
+- 2026-02-25: Added tool enhancement backlog tracking doc and linked governance tasks in source-of-truth plan.
+- 2026-02-25: Added prompt compatibility probe script and triaged scenario A/B tool gaps plus exploratory prompt enhancement candidate.
+- 2026-02-25: Implemented scenario A (cow/moon lyric+bouncing-ball) and scenario B (day/night transition) baseline support; prompt probe required failures reduced to zero.

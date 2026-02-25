@@ -15,8 +15,18 @@
         "ufoLandingBeat",
         "drawAdoptionCurve",
         "drawPieSaturation",
+        "drawSegmentedAttachBars",
+        "setLyricsTrack",
         "annotateInsight",
-        "sceneMorph"
+        "sceneMorph",
+        "setRenderMode",
+        "spawnSceneActor",
+        "setActorMotion",
+        "setActorAnimation",
+        "emitFx",
+        "setEnvironmentMood",
+        "setCameraMove",
+        "applyMaterialFx"
       ]
     },
     "params": { "type": "object" },

@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from services.agent_runtime.manager import AgentRunManager
+from services.agents.visual.quality import evaluate_market_growth_scene
 from services.agents.voice.errors import VoiceEngineError
 from services.agents.voice.stt.worker import stt_capabilities, transcribe_audio
 from services.agents.voice.tts.worker import synthesize_segments, tts_capabilities
@@ -48,6 +49,13 @@ AGENT_RUN_DB_PATH = Path(
 
 def _truthy(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _looks_like_market_growth_prompt(prompt: str) -> bool:
+    p = str(prompt or "").lower()
+    keys = ("market growth", "segmented attach", "attach", "presentation", "graph", "timeline", "increase")
+    hits = sum(1 for key in keys if key in p)
+    return hits >= 2
 
 
 def _resolve_runtime_path(env_key: str, default_path: Path) -> Path:
@@ -375,6 +383,23 @@ async def _execute_turn(session_id: str, prompt: str, source: str) -> dict:
 
     visual_strokes = result.get("visual_strokes", [])
     patches = compile_brush_batch(visual_strokes)
+    quality_report: dict | None = None
+    if _looks_like_market_growth_prompt(prompt):
+        quality_report = evaluate_market_growth_scene(patches)
+        if not quality_report.get("ok"):
+            failures = quality_report.get("failures", [])
+            message = (
+                "Visual quality hardening: auto-detected market-graph issues - "
+                + ", ".join(str(item) for item in failures[:3])
+            )
+            patches.append(
+                {
+                    "op": "add",
+                    "path": "/annotations/-",
+                    "value": {"text": message, "style": "warning"},
+                    "at_ms": 0,
+                }
+            )
     _validate_many(patches, SCENE_PATCH_SCHEMA, context_prefix="orchestrate.visual_patches")
 
     voice = result.get("voice", {})
@@ -390,6 +415,8 @@ async def _execute_turn(session_id: str, prompt: str, source: str) -> dict:
             "duration_ms": _timeline_duration_ms(visual_strokes=visual_strokes, voice=voice),
         },
     }
+    if quality_report is not None:
+        event["quality_report"] = quality_report
     await ws_manager.broadcast(event)
     record_orchestrate(duration_s=perf_counter() - started, source=source)
     return event

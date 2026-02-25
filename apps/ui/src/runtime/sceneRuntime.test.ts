@@ -50,4 +50,49 @@ describe('sceneRuntime', () => {
     const removed = applyPatch(withActor, { op: 'remove', path: '/actors/guide' })
     expect(removed.actors.guide).toBeUndefined()
   })
+
+  it('supports render, fx, material, camera, and environment primitives', () => {
+    const scene = buildScene(
+      [
+        { op: 'replace', path: '/render/mode', at_ms: 0, value: '3d' },
+        { op: 'add', path: '/fx/bubble_emitter', at_ms: 20, value: { type: 'bubble_emitter', count: 10 } },
+        { op: 'add', path: '/charts/segmented_attach', at_ms: 25, value: { type: 'bar-segmented', segments: [] } },
+        { op: 'replace', path: '/materials/fish_bowl_glass', at_ms: 30, value: { shader_id: 'glass_refraction_like' } },
+        { op: 'replace', path: '/camera/motion', at_ms: 40, value: { mode: 'glide-orbit' } },
+        { op: 'replace', path: '/environment/mood', at_ms: 50, value: { phase: 'day-to-dusk' } },
+      ],
+      100,
+    )
+
+    expect(scene.render.mode).toBe('3d')
+    expect(scene.fx.bubble_emitter.type).toBe('bubble_emitter')
+    expect(scene.charts.segmented_attach.type).toBe('bar-segmented')
+    expect(scene.materials.fish_bowl_glass.shader_id).toBe('glass_refraction_like')
+    expect(scene.camera.motion).toEqual({ mode: 'glide-orbit' })
+    expect(scene.environment.mood).toEqual({ phase: 'day-to-dusk' })
+  })
+
+  it('supports lyric-word patches for timed captions', () => {
+    const scene = buildScene(
+      [
+        {
+          op: 'replace',
+          path: '/lyrics/words',
+          at_ms: 300,
+          value: {
+            items: [
+              { text: 'The', at_ms: 300 },
+              { text: 'cow', at_ms: 720 },
+            ],
+            start_ms: 300,
+            step_ms: 420,
+          },
+        },
+      ],
+      1000,
+    )
+    expect(scene.lyrics.words.length).toBe(2)
+    expect(scene.lyrics.words[1].text).toBe('cow')
+    expect(scene.lyrics.step_ms).toBe(420)
+  })
 })

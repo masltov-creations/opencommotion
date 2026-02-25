@@ -15,6 +15,13 @@ type VoicePayload = {
   segments: VoiceSegment[]
 }
 
+type QualityReport = {
+  ok: boolean
+  checks: string[]
+  warnings: string[]
+  failures: string[]
+}
+
 type TurnResult = {
   session_id: string
   turn_id: string
@@ -22,6 +29,7 @@ type TurnResult = {
   voice: VoicePayload
   visual_patches: Patch[]
   timeline?: { duration_ms: number }
+  quality_report?: QualityReport
 }
 
 type ArtifactResult = {
@@ -121,6 +129,59 @@ function describeVoice(voice: VoicePayload | null): string {
   return `${voice.voice}${voice.engine ? ` (${voice.engine})` : ''}`
 }
 
+function interpolatePath(pathPoints: number[][], t: number): { x: number; y: number } | null {
+  if (pathPoints.length < 2) {
+    return null
+  }
+  const normalized = Math.max(0, Math.min(0.99999, t))
+  const segmentFloat = normalized * (pathPoints.length - 1)
+  const segmentIdx = Math.floor(segmentFloat)
+  const segmentT = segmentFloat - segmentIdx
+  const start = pathPoints[segmentIdx]
+  const end = pathPoints[Math.min(pathPoints.length - 1, segmentIdx + 1)]
+  const x = start[0] + (end[0] - start[0]) * segmentT
+  const y = start[1] + (end[1] - start[1]) * segmentT
+  return { x, y }
+}
+
+function actorPathPosition(actor: SceneActor, playbackMs: number, fallbackX: number, fallbackY: number): { x: number; y: number } {
+  if (!actor.motion || typeof actor.motion === 'string') {
+    return { x: actor.x ?? fallbackX, y: actor.y ?? fallbackY }
+  }
+  const durationMs = Number(actor.motion.duration_ms || 4200)
+  const pointsRaw = actor.motion.path_points
+  const points = Array.isArray(pointsRaw)
+    ? pointsRaw
+        .filter((row): row is number[] => Array.isArray(row) && row.length >= 2)
+        .map((row) => [Number(row[0]), Number(row[1])])
+    : []
+  const t = durationMs <= 0 ? 0 : (playbackMs % durationMs) / durationMs
+  const mapped = interpolatePath(points, t)
+  if (!mapped) {
+    return { x: actor.x ?? fallbackX, y: actor.y ?? fallbackY }
+  }
+  return mapped
+}
+
+function chartProgress(chart: { at_ms?: number; duration_ms?: number } | undefined, playbackMs: number): number {
+  if (!chart) {
+    return 1
+  }
+  const start = Number(chart.at_ms || 0)
+  const duration = Math.max(1, Number(chart.duration_ms || 1))
+  const progress = (playbackMs - start) / duration
+  return Math.max(0, Math.min(1, progress))
+}
+
+function progressivePolyline(points: number[][] | undefined, progress: number): number[][] {
+  if (!points || points.length <= 1) {
+    return points || []
+  }
+  const capped = Math.max(0, Math.min(1, progress))
+  const required = Math.max(2, Math.ceil(capped * points.length))
+  return points.slice(0, required)
+}
+
 export default function App() {
   const [prompt, setPrompt] = useState('show a moonwalk with adoption chart and pie')
   const [text, setText] = useState('')
@@ -133,6 +194,7 @@ export default function App() {
   const [playbackMs, setPlaybackMs] = useState(0)
   const [durationMs, setDurationMs] = useState(0)
   const [voice, setVoice] = useState<VoicePayload | null>(null)
+  const [qualityReport, setQualityReport] = useState<QualityReport | null>(null)
   const [audioFile, setAudioFile] = useState<File | null>(null)
   const [transcript, setTranscript] = useState('')
   const [transcribing, setTranscribing] = useState(false)
@@ -402,6 +464,7 @@ export default function App() {
     lastTurnRef.current = turn.turn_id
     setText(turn.text)
     setVoice(turn.voice)
+    setQualityReport(turn.quality_report || null)
     const orderedPatches = [...(turn.visual_patches || [])].sort((a, b) => (a.at_ms || 0) - (b.at_ms || 0))
     setPatches(orderedPatches)
     const totalDuration = calcDurationMs(turn)
@@ -717,8 +780,32 @@ export default function App() {
   )
 
   const actorEntries = Object.entries(scene.actors)
-  const lineChart = scene.charts.adoption_curve
-  const pieChart = scene.charts.saturation_pie
+  const lineChart = scene.charts.adoption_curve as { points?: number[][]; at_ms?: number; duration_ms?: number } | undefined
+  const pieChart = scene.charts.saturation_pie as
+    | { slices?: Array<{ label: string; value: number }>; at_ms?: number; duration_ms?: number }
+    | undefined
+  const segmentedAttach = scene.charts.segmented_attach as
+    | { segments?: Array<{ label: string; target: number; color?: string }>; at_ms?: number; duration_ms?: number }
+    | undefined
+  const lineProgress = chartProgress(lineChart, playbackMs)
+  const linePoints = progressivePolyline(lineChart?.points, lineProgress)
+  const pieProgress = chartProgress(pieChart, playbackMs)
+  const pieSlices = (pieChart?.slices || []).map((slice, idx) => ({
+    ...slice,
+    value: idx === 0 ? Math.round(slice.value * pieProgress) : slice.value,
+  }))
+  const segmentedProgress = chartProgress(segmentedAttach, playbackMs)
+  const segmentedValues = (segmentedAttach?.segments || []).map((segment) => ({
+    ...segment,
+    current: Math.round(Number(segment.target || 0) * segmentedProgress),
+  }))
+  const renderMode = scene.render.mode || '2d'
+  const mood = (scene.environment.mood || {}) as Record<string, unknown>
+  const bubbleFx = scene.fx.bubble_emitter as { particles?: Array<Record<string, number>> } | undefined
+  const bounceFx = scene.fx.bouncing_ball as { start_ms?: number; step_ms?: number; words_count?: number } | undefined
+  const causticFx = scene.fx.caustic_pattern as { intensity?: number; phase?: number } | undefined
+  const waterFx = scene.fx.water_shimmer as { speed?: number; surface_amp?: number } | undefined
+  const lyricsWords = scene.lyrics.words || []
   const audioUri = voice?.segments?.[0]?.audio_uri
   const toneFallback = voice?.engine === 'tone-fallback'
   const llmProvider = runtimeCaps?.llm?.selected_provider || 'unknown'
@@ -993,32 +1080,82 @@ export default function App() {
             </button>
           </div>
 
+          {qualityReport ? (
+            <p className={qualityReport.ok ? 'muted' : 'error'}>
+              Graph quality: {qualityReport.ok ? 'compatible' : 'needs correction'}
+              {qualityReport.failures?.length ? ` (${qualityReport.failures.join(', ')})` : ''}
+            </p>
+          ) : null}
+
           <svg viewBox="0 0 720 360" aria-label="visual stage">
             <defs>
               <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="#111827" />
-                <stop offset="100%" stopColor="#0ea5e9" />
+                <stop offset="0%" stopColor={mood.phase === 'night' ? '#020617' : mood.phase === 'day-to-dusk' ? '#1e293b' : '#111827'} />
+                <stop offset="100%" stopColor={mood.phase === 'night' ? '#1d4ed8' : mood.phase === 'day-to-dusk' ? '#f59e0b' : '#0ea5e9'} />
               </linearGradient>
             </defs>
             <rect x="0" y="0" width="720" height="360" fill="url(#bg)" rx="14" />
 
+            {renderMode === '3d' ? <text x="24" y="104" fill="#f8fafc" fontSize="13">Render mode: 3D</text> : null}
+            {renderMode === '2d' ? <text x="24" y="104" fill="#f8fafc" fontSize="13">Render mode: 2D</text> : null}
+
             <rect x="420" y="206" width="240" height="120" fill="rgba(2,6,23,0.58)" rx="12" />
-            {lineChart?.points ? (
+            {linePoints.length >= 2 ? (
               <polyline
-                points={mapPolyline(lineChart.points, 440, 220, 180, 80)}
+                points={mapPolyline(linePoints, 440, 220, 180, 80)}
                 fill="none"
                 stroke="#22d3ee"
                 strokeWidth="4"
               />
             ) : null}
 
-            {pieChart?.slices?.length ? (
+            {pieSlices.length ? (
               <g>
                 <circle cx="615" cy="138" r="45" fill="#334155" />
                 <text x="615" y="143" textAnchor="middle" fill="#e2e8f0" fontSize="13">
-                  {pieChart.slices[0]?.label}: {pieChart.slices[0]?.value}%
+                  {pieSlices[0]?.label}: {pieSlices[0]?.value}%
                 </text>
               </g>
+            ) : null}
+
+            {segmentedValues.length ? (
+              <g>
+                <rect x="430" y="46" width="248" height="140" fill="#020617aa" rx="12" />
+                {segmentedValues.map((segment, idx) => {
+                  const barBaseY = 168
+                  const barHeight = Math.round((segment.current / 100) * 84)
+                  const x = 446 + idx * 76
+                  const y = barBaseY - barHeight
+                  return (
+                    <g key={`seg-${segment.label}`}>
+                      <rect x={x} y={y} width="42" height={barHeight} fill={segment.color || '#22d3ee'} rx="6" />
+                      <text x={x + 21} y={barBaseY + 15} textAnchor="middle" fill="#cbd5e1" fontSize="10">
+                        {segment.label}
+                      </text>
+                      <text x={x + 21} y={y - 4} textAnchor="middle" fill="#e2e8f0" fontSize="10">
+                        {segment.current}%
+                      </text>
+                    </g>
+                  )
+                })}
+              </g>
+            ) : null}
+
+            {causticFx ? (
+              <g opacity={Math.max(0.15, Math.min(0.6, Number(causticFx.intensity || 0.32)))}>
+                <path d="M210 272 C260 228, 338 308, 390 258" stroke="#fde68a" strokeWidth="4" fill="none" />
+                <path d="M240 292 C302 244, 362 316, 426 268" stroke="#fef9c3" strokeWidth="3" fill="none" />
+              </g>
+            ) : null}
+
+            {waterFx ? (
+              <path
+                d={`M250 154 C292 ${150 + Math.sin(playbackMs / 380) * 5}, 362 ${159 + Math.cos(playbackMs / 430) * 6}, 404 153`}
+                stroke="#93c5fd"
+                strokeWidth="2"
+                fill="none"
+                opacity={0.75}
+              />
             ) : null}
 
             {actorEntries.map(([id, actor]) => {
@@ -1053,8 +1190,105 @@ export default function App() {
                 )
               }
 
+              if (actor.type === 'bowl') {
+                return (
+                  <g key={id}>
+                    <ellipse cx={x} cy={y + 46} rx="118" ry="18" fill="#0f172a55" />
+                    <ellipse cx={x} cy={y} rx="94" ry="86" fill={renderMode === '3d' ? '#dbeafe66' : '#bfdbfe44'} />
+                    <ellipse cx={x} cy={y - 1} rx="94" ry="86" fill="none" stroke="#e0f2fe" strokeWidth="5" />
+                    <ellipse cx={x} cy={y - 54} rx="66" ry="13" fill="#93c5fd55" />
+                  </g>
+                )
+              }
+
+              if (actor.type === 'fish') {
+                const pos = actorPathPosition(actor, playbackMs, 310, 205)
+                return (
+                  <g key={id}>
+                    <ellipse cx={pos.x} cy={pos.y} rx="24" ry="13" fill="#f59e0b" />
+                    <polygon points={`${pos.x - 23},${pos.y} ${pos.x - 41},${pos.y - 11} ${pos.x - 41},${pos.y + 11}`} fill="#fb923c" />
+                    <circle cx={pos.x + 11} cy={pos.y - 3} r="2.4" fill="#111827" />
+                  </g>
+                )
+              }
+
+              if (actor.type === 'cow') {
+                const pos = actorPathPosition(actor, playbackMs, x, y)
+                return (
+                  <g key={id}>
+                    <rect x={pos.x - 34} y={pos.y - 20} width="68" height="38" fill="#f8fafc" rx="10" />
+                    <circle cx={pos.x + 25} cy={pos.y - 14} r="12" fill="#f8fafc" />
+                    <circle cx={pos.x + 18} cy={pos.y - 14} r="2" fill="#111827" />
+                    <circle cx={pos.x + 28} cy={pos.y - 14} r="2" fill="#111827" />
+                    <rect x={pos.x - 30} y={pos.y + 15} width="8" height="18" fill="#f8fafc" rx="2" />
+                    <rect x={pos.x - 10} y={pos.y + 15} width="8" height="18" fill="#f8fafc" rx="2" />
+                    <rect x={pos.x + 10} y={pos.y + 15} width="8" height="18" fill="#f8fafc" rx="2" />
+                    <rect x={pos.x + 26} y={pos.y + 15} width="8" height="18" fill="#f8fafc" rx="2" />
+                  </g>
+                )
+              }
+
+              if (actor.type === 'moon') {
+                return (
+                  <g key={id}>
+                    <circle cx={x} cy={y} r="34" fill="#fef3c7" />
+                    <circle cx={x + 10} cy={y - 8} r="6" fill="#fde68a" />
+                    <circle cx={x - 12} cy={y + 10} r="5" fill="#fde68a" />
+                  </g>
+                )
+              }
+
+              if (actor.type === 'plant') {
+                const sway = actor.animation?.name === 'sway' ? Math.sin(playbackMs / 420) * 7 : 0
+                return (
+                  <g key={id}>
+                    <path d={`M${x},${y} C${x - 10 + sway},${y - 38} ${x + 16 + sway},${y - 74} ${x + 2 + sway},${y - 116}`} stroke="#4ade80" strokeWidth="4" fill="none" />
+                    <path d={`M${x + 4},${y - 8} C${x + 10 + sway},${y - 42} ${x - 8 + sway},${y - 76} ${x + 10 + sway},${y - 110}`} stroke="#22c55e" strokeWidth="3" fill="none" />
+                  </g>
+                )
+              }
+
               return null
             })}
+
+            {(bubbleFx?.particles || []).slice(0, 28).map((particle, idx) => {
+              const startX = Number(particle.x || 0.5)
+              const startY = Number(particle.start_y || 0.84)
+              const size = Number(particle.size || 3.5)
+              const rise = Number(particle.rise_per_s || 0.08)
+              const drift = Number(particle.drift || 0)
+              const phase = Number(particle.phase || 0)
+              const timeS = playbackMs / 1000
+              const yNorm = startY - ((timeS * rise + phase) % 0.85)
+              const xNorm = startX + Math.sin((timeS + phase) * 2.4) * drift
+              const cx = 230 + xNorm * 210
+              const cy = 120 + yNorm * 170
+              return <circle key={`bubble-${idx}`} cx={cx} cy={cy} r={size * 0.55} fill="#dbeafe99" stroke="#ffffff88" strokeWidth="0.7" />
+            })}
+
+            {lyricsWords.length ? (
+              <g>
+                {lyricsWords.map((word, idx) => {
+                  const x = 80 + idx * 88
+                  return (
+                    <text key={`lyric-${idx}`} x={x} y={338} textAnchor="middle" fill="#f8fafc" fontSize="20">
+                      {word.text}
+                    </text>
+                  )
+                })}
+                {bounceFx ? (() => {
+                  const startMs = Number(bounceFx.start_ms || scene.lyrics.start_ms || 0)
+                  const stepMs = Math.max(120, Number(bounceFx.step_ms || scene.lyrics.step_ms || 420))
+                  const idx = Math.max(
+                    0,
+                    Math.min(lyricsWords.length - 1, Math.floor((playbackMs - startMs) / stepMs)),
+                  )
+                  const ballX = 80 + idx * 88
+                  const bob = 8 + Math.abs(Math.sin(playbackMs / 160)) * 10
+                  return <circle cx={ballX} cy={328 - bob} r="8" fill="#f43f5e" />
+                })() : null}
+              </g>
+            ) : null}
 
             <text x="24" y="32" fill="#e2e8f0" fontSize="20">Patch count: {patches.length}</text>
             <text x="24" y="56" fill="#cbd5e1" fontSize="14">Applied: {appliedCount}</text>

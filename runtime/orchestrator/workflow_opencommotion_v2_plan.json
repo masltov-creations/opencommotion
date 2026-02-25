@@ -6,7 +6,9 @@
     "schema-enforced contracts",
     "patch-driven runtime UI",
     "semantic artifact recall",
-    "release-grade e2e and hardening"
+    "release-grade e2e and hardening",
+    "visual-intelligence-v2 with reusable scene primitives",
+    "stretch scenario D fish-bowl cinematic in 2d and 3d"
   ],
   "waves": [
     {
@@ -17,9 +19,21 @@
       ]
     },
     {
-      "name": "wave-1-runtime-and-memory",
+      "name": "wave-0b-visual-contract-foundation",
       "depends_on": [
         "wave-0-contract-and-voice-foundation"
+      ],
+      "parallel_tasks": [
+        "scene-primitive-contracts",
+        "shader-guardrails",
+        "scenario-matrix-seeding"
+      ]
+    },
+    {
+      "name": "wave-1-runtime-and-memory",
+      "depends_on": [
+        "wave-0-contract-and-voice-foundation",
+        "wave-0b-visual-contract-foundation"
       ],
       "parallel_tasks": [
         "skill-ui-patch-runtime",
@@ -33,7 +47,8 @@
       ],
       "parallel_tasks": [
         "skill-e2e-realtime",
-        "skill-security-ops"
+        "skill-security-ops",
+        "scenario-certification-A-B-C-D"
       ]
     },
     {

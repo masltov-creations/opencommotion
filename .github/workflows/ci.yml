@@ -1,4 +1,4 @@
-name: opencommotion-ci
+name: OpenCommotion CI
 
 on:
   push:

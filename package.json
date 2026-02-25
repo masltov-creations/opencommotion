@@ -1,5 +1,6 @@
 {
   "name": "opencommotion",
+  "displayName": "OpenCommotion",
   "version": "0.1.0",
   "private": true,
   "workspaces": [

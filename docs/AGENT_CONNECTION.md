@@ -98,7 +98,7 @@ curl -sS -X POST http://127.0.0.1:8000/v1/voice/transcribe \
 curl -sS -X POST http://127.0.0.1:8000/v1/voice/synthesize \
   -H "x-api-key: ${OPENCOMMOTION_API_KEY}" \
   -H 'content-type: application/json' \
-  -d '{"text":"hello opencommotion"}'
+  -d '{"text":"hello OpenCommotion"}'
 ```
 
 The returned segment `audio_uri` is served by gateway under `/v1/audio/...`.
@@ -158,8 +158,18 @@ Supported stroke `kind` values:
 - `ufoLandingBeat`
 - `drawAdoptionCurve`
 - `drawPieSaturation`
+- `drawSegmentedAttachBars`
+- `setLyricsTrack`
 - `annotateInsight`
 - `sceneMorph`
+- `setRenderMode`
+- `spawnSceneActor`
+- `setActorMotion`
+- `setActorAnimation`
+- `emitFx`
+- `setEnvironmentMood`
+- `setCameraMove`
+- `applyMaterialFx`
 
 Direct compile example:
 
@@ -202,10 +212,35 @@ curl -sS -X POST http://127.0.0.1:8000/v1/orchestrate \
   -d '{"session_id":"anim-agent-1","prompt":"show a moonwalk, orbiting globe, and adoption chart"}'
 ```
 
+Orchestrated fish-bowl examples:
+
+```bash
+curl -sS -X POST http://127.0.0.1:8000/v1/orchestrate \
+  -H "x-api-key: ${OPENCOMMOTION_API_KEY}" \
+  -H 'content-type: application/json' \
+  -d '{"session_id":"fish-2d","prompt":"2d fish bowl scene with bubbles, caustic light, plant sway, and day-to-dusk mood shift"}'
+```
+
+```bash
+curl -sS -X POST http://127.0.0.1:8000/v1/orchestrate \
+  -H "x-api-key: ${OPENCOMMOTION_API_KEY}" \
+  -H 'content-type: application/json' \
+  -d '{"session_id":"fish-3d","prompt":"3d fish bowl cinematic with refraction-like glass, water shimmer, soft volumetric feel, and smooth camera glide"}'
+```
+
 For realtime playback:
 1. Subscribe to websocket `ws://127.0.0.1:8000/v1/events/ws?api_key=${OPENCOMMOTION_API_KEY}`.
 2. Read `payload.visual_patches` in event order.
 3. Apply patches by `at_ms` against local scene state.
+
+Market graph quality evaluation:
+- For market-growth prompts, REST turn payloads include `quality_report` with checks/failures for graph compatibility.
+- Use it to gate artifact saving or retry with an adjusted prompt.
+
+Reusable visual primitives:
+- Treat scene generation as composition of base parts (`actors`, `fx`, `materials`, `environment`, `camera`, `render mode`).
+- Use these primitives to build both known scenarios and new concepts without adding one-off protocol kinds.
+- Reference scenario requirements and canonical prompts in `docs/VISUAL_INTELLIGENCE_PLAN.md`.
 
 ## 6.1) Setup and run-manager APIs
 

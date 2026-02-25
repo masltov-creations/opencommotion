@@ -56,6 +56,7 @@ Auth defaults:
 - read `payload.text`
 - render `payload.visual_patches` by `at_ms`
 - play `payload.voice.segments[*].audio_uri`
+- if present, check `payload.quality_report` for scenario-specific compatibility gates (for market-growth graph flows)
 7. Optionally save and search artifacts.
 8. For autonomous backend loops, create run via `/v1/agent-runs`, enqueue prompts, and control run state.
 
@@ -126,6 +127,9 @@ When using `brush/compile`:
 - validate kinds against protocol list
 - keep `at_ms` scheduling monotonic where possible
 
+Generic visual composition rule:
+- Build scenes from reusable primitives (`setRenderMode`, `spawnSceneActor`, `setActorMotion`, `emitFx`, `applyMaterialFx`, `setEnvironmentMood`, `setCameraMove`) so scenarios are composable and extensible.
+
 ## 9) Artifact strategy
 
 - Save noteworthy turns immediately after completion.
@@ -145,6 +149,13 @@ When using `brush/compile`:
 - Run quality gates (`opencommotion test-complete`).
 - Run fresh consumer agent proof (`opencommotion fresh-agent-e2e`).
 - Run voice preflight (`opencommotion preflight`).
+- Log any tool-driven requirement gap in `docs/TOOL_ENHANCEMENT_BACKLOG.md` before closeout.
+
+Visual scenario check (v2 lane):
+- Run one `2d` and one `3d` prompt using the same story objective.
+- Verify deterministic patch replay and no abrupt camera or timing jumps.
+- Include fish-bowl stretch scenario prompt from `docs/VISUAL_INTELLIGENCE_PLAN.md` as a regression sample.
+- Run seeded compatibility probe (`python3 scripts/prompt_compat_probe.py --inprocess --seed 23`) and triage failures in `docs/TOOL_ENHANCEMENT_BACKLOG.md`.
 
 ## 11) Minimal run commands
 

@@ -2,6 +2,8 @@
 
 OpenCommotion turns a prompt into a synchronized experience: text, voice, and visual animation, all in one app.
 
+Project name: `OpenCommotion`
+
 If Python had a storyboard engine, this would be it.
 
 ## Why People Care
@@ -25,13 +27,13 @@ One-line bootstrap (clone/update + setup):
 Linux/macOS/Git Bash:
 
 ```bash
-mkdir -p /home/$USER/apps && ( [ -d /home/$USER/apps/opencommotion/.git ] && git -C /home/$USER/apps/opencommotion pull --ff-only origin main || git clone https://github.com/masltov-creations/opencommotion /home/$USER/apps/opencommotion ) && cd /home/$USER/apps/opencommotion && bash scripts/setup.sh
+mkdir -p /home/$USER/apps && ( [ -d /home/$USER/apps/opencommotion/.git ] && git -C /home/$USER/apps/opencommotion pull --ff-only origin main || git clone https://github.com/masltov-creations/OpenCommotion /home/$USER/apps/opencommotion ) && cd /home/$USER/apps/opencommotion && bash scripts/setup.sh
 ```
 
 PowerShell (via WSL):
 
 ```powershell
-wsl bash -lc 'mkdir -p ~/apps && ( [ -d ~/apps/opencommotion/.git ] && git -C ~/apps/opencommotion pull --ff-only origin main || git clone https://github.com/masltov-creations/opencommotion ~/apps/opencommotion ) && cd ~/apps/opencommotion && bash scripts/setup.sh'
+wsl bash -lc 'mkdir -p ~/apps && ( [ -d ~/apps/opencommotion/.git ] && git -C ~/apps/opencommotion pull --ff-only origin main || git clone https://github.com/masltov-creations/OpenCommotion ~/apps/opencommotion ) && cd ~/apps/opencommotion && bash scripts/setup.sh'
 ```
 
 That command installs dependencies, starts the app, then opens the browser (or prompts first in interactive shells).
@@ -133,6 +135,7 @@ opencommotion -run
 2. Choose your LLM provider and voice policy.
 3. Click **Validate Setup** and **Save Setup**.
 4. Enter a prompt and click **Run Turn**.
+   - Example stretch prompt: `Create a serene cinematic scene of a goldfish swimming inside a clear glass fish bowl on a wooden desk near a window, with bubbles, caustic light, and a day-to-dusk mood shift.`
 5. Watch synchronized text + voice + animation playback.
 If backend voice engine is unavailable, the UI automatically falls back to browser speech so narration still works.
 6. Save interesting results as artifacts.
@@ -211,6 +214,11 @@ python3 scripts/agent_examples/rest_ws_agent_client.py \
   --prompt "ufo landing with pie chart"
 ```
 
+Visual-intelligence scenario requirements and certification matrix:
+- `docs/VISUAL_INTELLIGENCE_PLAN.md`
+- Includes common graph mistakes + hardening rules and compatibility checks.
+- Tool-gap tracking lives in `docs/TOOL_ENHANCEMENT_BACKLOG.md`.
+
 ## Codex CLI End-to-End (Step by Step)
 
 1. Bootstrap repo and dependencies:
@@ -218,13 +226,13 @@ python3 scripts/agent_examples/rest_ws_agent_client.py \
 Linux/macOS/Git Bash:
 
 ```bash
-mkdir -p /home/$USER/apps && ( [ -d /home/$USER/apps/opencommotion/.git ] && git -C /home/$USER/apps/opencommotion pull --ff-only origin main || git clone https://github.com/masltov-creations/opencommotion /home/$USER/apps/opencommotion ) && cd /home/$USER/apps/opencommotion && bash scripts/setup.sh
+mkdir -p /home/$USER/apps && ( [ -d /home/$USER/apps/opencommotion/.git ] && git -C /home/$USER/apps/opencommotion pull --ff-only origin main || git clone https://github.com/masltov-creations/OpenCommotion /home/$USER/apps/opencommotion ) && cd /home/$USER/apps/opencommotion && bash scripts/setup.sh
 ```
 
 PowerShell (via WSL):
 
 ```powershell
-wsl bash -lc 'mkdir -p ~/apps && ( [ -d ~/apps/opencommotion/.git ] && git -C ~/apps/opencommotion pull --ff-only origin main || git clone https://github.com/masltov-creations/opencommotion ~/apps/opencommotion ) && cd ~/apps/opencommotion && bash scripts/setup.sh'
+wsl bash -lc 'mkdir -p ~/apps && ( [ -d ~/apps/opencommotion/.git ] && git -C ~/apps/opencommotion pull --ff-only origin main || git clone https://github.com/masltov-creations/OpenCommotion ~/apps/opencommotion ) && cd ~/apps/opencommotion && bash scripts/setup.sh'
 ```
 
 2. Authenticate Codex CLI once:
@@ -324,7 +332,13 @@ Voice engines:
 opencommotion status
 opencommotion preflight
 opencommotion doctor
+python3 scripts/evaluate_market_graph.py
+python3 scripts/evaluate_market_graph.py --inprocess
+python3 scripts/prompt_compat_probe.py --inprocess --seed 23
 ```
+
+`prompt_compat_probe.py` exits non-zero when required scenario expectations fail; use that as a triage gate.
+Use probe output + `docs/TOOL_ENHANCEMENT_BACKLOG.md` to record bug candidates vs enhancement candidates from random prompts.
 
 ## Core API Surface
 
@@ -336,6 +350,8 @@ opencommotion doctor
 - `GET /v1/agent-runs/{run_id}`
 - `POST /v1/agent-runs/{run_id}/enqueue`
 - `POST /v1/agent-runs/{run_id}/control`
+
+For market-growth prompts, `POST /v1/orchestrate` also returns a `quality_report` block with compatibility checks/failures for generated graph payloads.
 
 WebSocket run events:
 - `agent.run.state`
