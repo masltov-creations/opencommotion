@@ -1,10 +1,10 @@
 # OpenCommotion
 
-OpenCommotion turns a prompt into a synchronized experience: text, voice, and visual animation, all in one app.
+OpenCommotion is a prompt-to-scene engine: it takes a prompt and produces synchronized text, voice, and animated visuals in one UI.
 
-Project name: `OpenCommotion`
+Project name: `OpenCommotion`.
 
-If Python had a storyboard engine, this would be it.
+If Python and a storyboard had a very productive meeting, this would be the output.
 
 ## Why People Care
 
@@ -12,10 +12,11 @@ If Python had a storyboard engine, this would be it.
 - Run autonomous agent turns with visible progress and controls.
 - Save outputs as reusable artifacts for demos, teaching, and product workflows.
 - Connect external agents (Codex, OpenClaw, custom clients) without building custom UI plumbing.
+- Get from clone to first working turn quickly, without bespoke local scripts.
 
 ![OpenCommotion UI](docs/assets/opencommotion-ui.png)
 
-## Quickstart
+## Quickstart (And Now For Something Completely Practical)
 
 Prereqs:
 - Python 3.11+
@@ -36,7 +37,7 @@ PowerShell (via WSL):
 wsl bash -lc 'mkdir -p ~/apps && ( [ -d ~/apps/opencommotion/.git ] && git -C ~/apps/opencommotion pull --ff-only origin main || git clone https://github.com/masltov-creations/OpenCommotion ~/apps/opencommotion ) && cd ~/apps/opencommotion && bash scripts/setup.sh'
 ```
 
-That command installs dependencies, starts the app, then opens the browser (or prompts first in interactive shells).
+That command installs dependencies, starts the app, and opens the browser (or asks first in interactive shells).
 If browser auto-open is blocked by your environment, open manually:
 - http://127.0.0.1:8000
 - PowerShell: `Start-Process http://127.0.0.1:8000`
@@ -56,7 +57,7 @@ PowerShell fallback if PATH has not refreshed yet:
 & "$env:USERPROFILE\.local\bin\opencommotion.cmd" -status
 ```
 
-The setup panel is only shown in setup mode (`/?setup=1`) and stays hidden in normal app usage.
+The setup panel appears only in setup mode (`/?setup=1`) and stays hidden in normal app usage.
 
 Manual start (if needed):
 
@@ -140,6 +141,8 @@ opencommotion -run
 If backend voice engine is unavailable, the UI automatically falls back to browser speech so narration still works.
 6. Save interesting results as artifacts.
 7. Use **Agent Run Manager** when you want queued/autonomous runs.
+
+If this worked, congratulations: your application is now less “science project” and more “usable product”.
 
 ## Daily Use
 
