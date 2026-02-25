@@ -1,10 +1,13 @@
-.PHONY: dev down test test-ui test-all test-e2e security-checks perf-checks test-complete lint fresh-agent-e2e voice-preflight
+.PHONY: dev down setup-wizard test test-ui test-all test-e2e security-checks perf-checks test-complete lint fresh-agent-e2e voice-preflight
 
 dev:
 	bash scripts/dev_up.sh
 
 down:
 	bash scripts/dev_down.sh
+
+setup-wizard:
+	python3 scripts/setup_wizard.py
 
 test:
 	. .venv/bin/activate && PYTHONPATH=$(CURDIR) pytest -q -s --capture=no tests/unit tests/integration

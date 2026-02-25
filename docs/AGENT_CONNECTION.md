@@ -17,6 +17,7 @@ python3 -m venv .venv
 pip install -r requirements.txt
 npm install
 cp .env.example .env
+make setup-wizard
 make dev
 curl -sS http://127.0.0.1:8000/health
 curl -sS http://127.0.0.1:8001/health
@@ -42,6 +43,7 @@ Default endpoints:
 - Orchestrator: `http://127.0.0.1:8001`
 - UI: `http://127.0.0.1:5173`
 - Event stream (WebSocket): `ws://127.0.0.1:8000/v1/events/ws`
+- Runtime capabilities (LLM + voice): `http://127.0.0.1:8000/v1/runtime/capabilities`
 
 ## 2) Health checks
 
@@ -90,6 +92,12 @@ The returned segment `audio_uri` is served by gateway under `/v1/audio/...`.
 
 ```bash
 curl -sS http://127.0.0.1:8000/v1/voice/capabilities
+```
+
+- Check full runtime readiness (LLM + STT + TTS):
+
+```bash
+curl -sS http://127.0.0.1:8000/v1/runtime/capabilities
 ```
 
 Production note:
@@ -189,7 +197,7 @@ Generate runtime state files:
 
 ```bash
 python3 scripts/spawn_expert_agents.py
-python3 scripts/init_wave_context.py --run-id closeout-wave-01
+python3 scripts/init_wave_context.py --run-id main-wave-01
 ```
 
 Runtime files are written to `runtime/agent-runs/` and can be used as local coordination state for parallel agent waves.
@@ -279,7 +287,7 @@ make down
 Before parallel execution, the `lead-orchestrator` should publish one shared context packet for the whole wave. Every agent works from this same packet.
 
 Required context fields:
-- `run_id`: unique wave id (example: `closeout-wave-01`)
+- `run_id`: unique wave id (example: `main-wave-01`)
 - `objective`: one-line target outcome
 - `scope_in`: explicit included work
 - `scope_out`: explicit excluded work
@@ -292,7 +300,7 @@ Context packet template:
 
 ```json
 {
-  "run_id": "closeout-wave-01",
+  "run_id": "main-wave-01",
   "objective": "Ship stable typed+voice+visual turn flow with deterministic playback.",
   "scope_in": [
     "Schema-safe event envelopes",
@@ -336,7 +344,7 @@ Template file:
 Recommended run record:
 1. Initialize from template in one command:
 ```bash
-python3 scripts/init_wave_context.py --run-id closeout-wave-01
+python3 scripts/init_wave_context.py --run-id main-wave-01
 ```
 2. Fill all fields before work starts.
 3. Update only `lead-orchestrator` after each checkpoint.
@@ -357,7 +365,7 @@ Lane ownership template:
 Recommended run record:
 1. Initialize from template in one command:
 ```bash
-python3 scripts/init_wave_context.py --run-id closeout-wave-01
+python3 scripts/init_wave_context.py --run-id main-wave-01
 ```
 2. Declare one writer per lane path set.
 3. Record dependency edges before implementation starts.
@@ -389,9 +397,9 @@ Efficiency rules:
 Use these files as coordination system-of-record:
 - Agent role definitions: `agents/*.json`
 - Runtime status and logs: `runtime/agent-runs/*.json`
-- Closeout scaffolds: `agents/scaffolds/*.json`
+- Implementation scaffolds: `agents/scaffolds/*.json`
 - Context and handoff templates: `agents/scaffolds/templates/*`
-- Workflow DAG: `runtime/orchestrator/workflow_opencommotion_v2_closeout.json`
+- Workflow DAG: `runtime/orchestrator/workflow_opencommotion_v2_plan.json`
 
 Recommended cadence:
 1. Start of wave: publish context packet and lane ownership.

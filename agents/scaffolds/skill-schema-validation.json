@@ -17,7 +17,7 @@
   ],
   "scope_out": [
     "Major schema redesign",
-    "Breaking schema version bump after closeout freeze"
+    "Breaking schema version bump after schema freeze"
   ],
   "implementation_checklist": [
     "Create schema validation module for gateway and orchestrator",

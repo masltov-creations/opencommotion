@@ -1,5 +1,5 @@
 {
-  "workflow_name": "opencommotion-closeout-v2",
+  "workflow_name": "opencommotion-plan-v2",
   "created_at": "2026-02-24T00:00:00Z",
   "goals": [
     "production voice pipeline",
@@ -37,7 +37,7 @@
       ]
     },
     {
-      "name": "wave-3-release-closeout",
+      "name": "wave-3-release-readiness",
       "depends_on": [
         "wave-2-quality-hardening"
       ],

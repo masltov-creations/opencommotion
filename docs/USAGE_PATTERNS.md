@@ -25,6 +25,7 @@ Required endpoints:
 - `POST /v1/voice/transcribe`
 - `POST /v1/voice/synthesize`
 - `GET /v1/voice/capabilities`
+- `GET /v1/runtime/capabilities`
 - `POST /v1/artifacts/save`
 - `GET /v1/artifacts/search`
 - `POST /v1/artifacts/recall/{artifact_id}`
@@ -35,14 +36,15 @@ Required endpoints:
 ## 3) Quick-start lane (agents)
 
 1. Check `GET /health` on gateway and orchestrator.
-2. Open websocket and send heartbeat `ping` every 10s.
-3. Submit `POST /v1/orchestrate` with `session_id` + prompt.
-4. Correlate websocket events by `session_id + turn_id`.
-5. Execute output:
+2. Check `GET /v1/runtime/capabilities` before first turn to confirm LLM/STT/TTS readiness.
+3. Open websocket and send heartbeat `ping` every 10s.
+4. Submit `POST /v1/orchestrate` with `session_id` + prompt.
+5. Correlate websocket events by `session_id + turn_id`.
+6. Execute output:
 - read `payload.text`
 - render `payload.visual_patches` by `at_ms`
 - play `payload.voice.segments[*].audio_uri`
-6. Optionally save and search artifacts.
+7. Optionally save and search artifacts.
 
 Recommended script:
 - `scripts/agent_examples/robust_turn_client.py`
@@ -121,13 +123,13 @@ When using `brush/compile`:
 
 - Stack starts with `make dev`.
 - Health checks pass.
-- One typed turn completed and rendered.
-- One voice synth call completed and audio URI played.
-- One artifact save/search/recall cycle completed.
-- One websocket reconnect simulated and recovered.
-- Quality gates pass (`make test-complete`).
-- Fresh consumer agent proof passes (`make fresh-agent-e2e`).
-- Voice preflight passes (`make voice-preflight`).
+- Run one typed turn and verify render output.
+- Run one voice synth call and verify audio URI playback.
+- Run one artifact save/search/recall cycle.
+- Simulate one websocket reconnect and confirm recovery.
+- Run quality gates (`make test-complete`).
+- Run fresh consumer agent proof (`make fresh-agent-e2e`).
+- Run voice preflight (`make voice-preflight`).
 
 ## 11) Minimal run commands
 

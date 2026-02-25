@@ -1,33 +1,10 @@
 # OpenCommotion
 
-OpenCommotion is a local-first visual orchestration platform where text, voice, and visual agents produce one synchronized turn. Give it a prompt and you get narration, scene patches, and timeline-aware output from a single flow.
+OpenCommotion is a local-first visual orchestration app: one prompt in, synchronized text + voice + visual patches out.
 
-## What This Is
+## Use It In Practice
 
-OpenCommotion is built for:
-- Interactive visual explainers that need synchronized text + voice + animation
-- Agent-driven content generation with deterministic patch playback
-- Local development and testing of multi-modal orchestration patterns
-
-Core services:
-- `services/gateway`: FastAPI ingress (`REST + WebSocket`)
-- `services/orchestrator`: turn planning and timeline merge
-- `services/brush_engine`: intent-to-patch compiler
-- `services/artifact_registry`: artifact save/search/recall
-- `apps/ui`: React runtime for scene playback
-- `packages/protocol` and `services/protocol`: shared contracts and schema validation
-
-## How It Works (E2E Flow)
-
-1. Client submits `POST /v1/orchestrate` with `session_id` + prompt.
-2. Gateway wraps request into a turn envelope.
-3. Orchestrator coordinates text, voice, and visual generation.
-4. Brush engine compiles visual intents into deterministic scene patches.
-5. Gateway emits final event envelope on `WS /v1/events/ws`.
-6. UI/agent applies `visual_patches`, plays voice URI, and renders text.
-7. Optional artifact lifecycle: save, search, recall, pin, archive.
-
-## Quick Start (First Run)
+### 1) First-time setup (guided)
 
 Prereqs:
 - Python 3.11+
@@ -40,117 +17,51 @@ source .venv/bin/activate
 pip install -r requirements.txt
 npm install
 cp .env.example .env
+make setup-wizard
+```
+
+The wizard configures your LLM/STT/TTS stack in `.env`.
+
+### 2) Start and open the app
+
+```bash
 make dev
 ```
 
-Open local endpoints:
+Open:
 - UI: `http://127.0.0.1:5173`
 - Gateway docs: `http://127.0.0.1:8000/docs`
 - Orchestrator docs: `http://127.0.0.1:8001/docs`
 
-Stop stack:
+In the UI, check **Setup Status**. It shows runtime readiness from:
+- `GET /v1/runtime/capabilities`
+
+### 3) Run a turn
+
+In UI:
+1. Enter prompt.
+2. Click `Run Turn`.
+3. Optional: upload audio and click `Transcribe Audio`.
+4. Optional: save/search artifacts.
+
+Expected:
+- text response
+- voice segment with `audio_uri`
+- visual patches applied and animated timeline
+
+### 4) Use as an agent/client
+
+Recommended robust client:
 
 ```bash
-make down
-```
-
-## End-to-End Smoke Test (Recommended)
-
-Run one full orchestrated turn and validate output:
-
-```bash
-make dev
 source .venv/bin/activate
-curl -sS http://127.0.0.1:8000/health
-curl -sS http://127.0.0.1:8001/health
 python scripts/agent_examples/robust_turn_client.py \
   --session first-run \
-  --prompt "quick onboarding verification turn" \
-  --search onboarding
-make down
-```
-
-Expected output includes:
-- `source` (`websocket` or `rest-fallback`)
-- `turn_id`
-- `patch_count`
-- `text`
-- `voice_uri`
-
-## How to Use It
-
-Use OpenCommotion from:
-- UI at `http://127.0.0.1:5173`
-- REST + WebSocket APIs via custom clients
-- Agent runtimes (Codex, Claude, LangGraph/AutoGen, custom workers)
-
-Essential endpoints:
-- `POST /v1/orchestrate`
-- `POST /v1/brush/compile`
-- `POST /v1/voice/transcribe`
-- `POST /v1/voice/synthesize`
-- `GET /v1/voice/capabilities`
-- `POST /v1/artifacts/save`
-- `GET /v1/artifacts/search`
-- `WS /v1/events/ws`
-
-## Production Voice Configuration
-
-Voice now supports policy-driven engine selection with strict mode.
-
-- STT engine selector: `OPENCOMMOTION_STT_ENGINE` (`auto`, `faster-whisper`, `vosk`, `text-fallback`)
-- TTS engine selector: `OPENCOMMOTION_TTS_ENGINE` (`auto`, `piper`, `espeak`, `tone-fallback`)
-- Strict production gate: `OPENCOMMOTION_VOICE_REQUIRE_REAL_ENGINES=true`
-
-When strict mode is enabled, voice endpoints and orchestration return `503` if real STT/TTS engines are not available.
-
-Preflight your voice stack:
-
-```bash
-make voice-preflight
-```
-
-Engine readiness via API:
-
-```bash
-curl -sS http://127.0.0.1:8000/v1/voice/capabilities | jq
-```
-
-Typical strict production env:
-
-```bash
-OPENCOMMOTION_VOICE_REQUIRE_REAL_ENGINES=true
-OPENCOMMOTION_STT_ENGINE=faster-whisper
-OPENCOMMOTION_STT_MODEL=tiny.en
-OPENCOMMOTION_TTS_ENGINE=piper
-OPENCOMMOTION_PIPER_MODEL=/opt/models/en_US-lessac-medium.onnx
-```
-
-Optional Python STT backends:
-
-```bash
-. .venv/bin/activate
-pip install faster-whisper vosk
-```
-
-## Connect Agents
-
-Default robust pattern:
-1. Keep one websocket open to `ws://127.0.0.1:8000/v1/events/ws`.
-2. Submit turns via `POST /v1/orchestrate`.
-3. Correlate with `session_id + turn_id`.
-4. Prefer websocket envelope for final synchronization.
-5. Fallback to REST payload if websocket event is late/missing.
-
-Run example agents:
-
-```bash
-source .venv/bin/activate
-python scripts/agent_examples/robust_turn_client.py \
-  --session codex-demo-1 \
   --prompt "moonwalk adoption chart with synchronized narration" \
-  --search adoption
+  --search onboarding
 ```
+
+Alternative minimal client:
 
 ```bash
 source .venv/bin/activate
@@ -159,107 +70,106 @@ python scripts/agent_examples/rest_ws_agent_client.py \
   --prompt "ufo landing with pie chart"
 ```
 
-Multi-agent coordination bootstrap:
+### 5) Stop
 
 ```bash
-python3 scripts/spawn_expert_agents.py
-python3 scripts/init_wave_context.py --run-id closeout-wave-01
+make down
 ```
 
-This writes coordination files to `runtime/agent-runs/` for lane ownership, wave context, and handoff workflow.
+## Smart Defaults (Open Source)
 
-## Tests and Validation
+Recommended defaults for quality + practicality:
+- LLM: `ollama` + `qwen2.5:7b-instruct`
+- STT: `faster-whisper` (`small.en`, `int8`)
+- TTS: `piper` if model is available, else `espeak`
 
-Backend tests:
+Useful alternatives:
+- LLM: openai-compatible local servers (`llama.cpp`, `vLLM`, `LocalAI`)
+- STT: `vosk` (lighter, fully offline)
+- TTS: `espeak`/`espeak-ng` (fast setup fallback)
 
-```bash
-make test
-```
-
-UI tests:
-
-```bash
-make test-ui
-```
-
-Backend + UI:
-
-```bash
-make test-all
-```
-
-Browser E2E:
-
-```bash
-make test-e2e
-```
-
-`make test-e2e` auto-prepares required Chromium runtime libs in user space on Linux via `scripts/ensure_playwright_libs.sh` (no sudo required for that step).
-
-Security gates:
-
-```bash
-make security-checks
-```
-
-Performance gates:
-
-```bash
-make perf-checks
-```
-
-Full validation suite:
-
-```bash
-make test-complete
-```
-
-If Playwright dependencies are missing:
-
-```bash
-npx playwright install --with-deps chromium
-```
-
-Fresh agent-consumer proof:
-
-```bash
-make fresh-agent-e2e
-```
-
-Voice preflight:
+Preflight checks:
 
 ```bash
 make voice-preflight
+curl -sS http://127.0.0.1:8000/v1/runtime/capabilities
 ```
 
-## Docs You Want First
+## Core Endpoints
 
-- Agent connection guide: `docs/AGENT_CONNECTION.md`
-- Robust usage patterns: `docs/USAGE_PATTERNS.md`
+- `POST /v1/orchestrate`
+- `POST /v1/brush/compile`
+- `POST /v1/voice/transcribe`
+- `POST /v1/voice/synthesize`
+- `GET /v1/voice/capabilities`
+- `GET /v1/runtime/capabilities`
+- `POST /v1/artifacts/save`
+- `GET /v1/artifacts/search`
+- `WS /v1/events/ws`
+
+## Validate It Works
+
+Fast smoke:
+
+```bash
+make dev
+source .venv/bin/activate
+curl -sS http://127.0.0.1:8000/health
+curl -sS http://127.0.0.1:8001/health
+python scripts/agent_examples/robust_turn_client.py --session smoke --prompt "quick onboarding verification turn"
+make down
+```
+
+Full gates:
+
+```bash
+make test-complete
+make fresh-agent-e2e
+```
+
+## Customize And Extend
+
+If you want to tailor providers, policies, or internal behavior, start here.
+
+### LLM provider config
+
+- `OPENCOMMOTION_LLM_PROVIDER`: `ollama`, `openai-compatible`, `heuristic`
+- `OPENCOMMOTION_LLM_MODEL`
+- `OPENCOMMOTION_LLM_ALLOW_FALLBACK`
+- `OPENCOMMOTION_OLLAMA_URL`
+- `OPENCOMMOTION_OPENAI_BASE_URL`
+- `OPENCOMMOTION_OPENAI_API_KEY`
+
+### Voice engine config
+
+- `OPENCOMMOTION_STT_ENGINE`: `auto`, `faster-whisper`, `vosk`, `text-fallback`
+- `OPENCOMMOTION_TTS_ENGINE`: `auto`, `piper`, `espeak`, `tone-fallback`
+- `OPENCOMMOTION_VOICE_REQUIRE_REAL_ENGINES=true` for strict production mode
+
+When strict mode is on, voice/turn requests fail with `503` if fallback-only.
+
+### Extend behavior
+
+- Text generation: `services/agents/text/worker.py`
+- Voice STT/TTS workers: `services/agents/voice/*`
+- Orchestration flow: `services/orchestrator/app/main.py`
+- API surface: `services/gateway/app/main.py`
+- UI runtime: `apps/ui/src/App.tsx`, `apps/ui/src/runtime/sceneRuntime.ts`
+
+### Multi-agent coordination
+
+```bash
+python3 scripts/spawn_expert_agents.py
+python3 scripts/init_wave_context.py --run-id main-wave-01
+```
+
+Artifacts are written under `runtime/agent-runs/`.
+
+## Docs
+
+- Practical integration guide: `docs/AGENT_CONNECTION.md`
+- Runtime usage patterns: `docs/USAGE_PATTERNS.md`
 - Architecture: `docs/ARCHITECTURE.md`
-- Closeout plan: `docs/CLOSEOUT_PLAN.md`
+- Active plan/status: `PROJECT.md`
 - Release runbook: `RELEASE.md`
-- Contribution workflow: `CONTRIBUTING.md`
-- Agent scaffolds and templates: `agents/scaffolds/`
-
-## Repository Structure
-
-```text
-apps/
-  ui/
-services/
-  gateway/
-  orchestrator/
-  agents/
-  brush_engine/
-  artifact_registry/
-  protocol/
-packages/
-  protocol/
-  plugin-sdk/
-runtime/
-  agent-runs/
-  orchestrator/
-scripts/
-  agent_examples/
-```
+- Contributing: `CONTRIBUTING.md`

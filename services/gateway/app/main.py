@@ -239,6 +239,30 @@ def voice_capabilities() -> dict:
     }
 
 
+@app.get("/v1/runtime/capabilities")
+async def runtime_capabilities() -> dict:
+    llm_payload: dict = {
+        "selected_provider": "unknown",
+        "effective_ready": False,
+        "error": "orchestrator_unreachable",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=6) as client:
+            response = await client.get(f"{ORCHESTRATOR_URL}/v1/llm/capabilities")
+        response.raise_for_status()
+        llm_payload = response.json()
+    except httpx.HTTPError as exc:
+        llm_payload["message"] = str(exc)
+
+    return {
+        "llm": llm_payload,
+        "voice": {
+            "stt": stt_capabilities(),
+            "tts": tts_capabilities(),
+        },
+    }
+
+
 @app.post("/v1/artifacts/save")
 async def save_artifact(req: ArtifactSaveRequest) -> dict:
     artifact_id = req.artifact_id or str(uuid4())

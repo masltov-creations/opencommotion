@@ -6,8 +6,8 @@ from uuid import uuid4
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from services.agents.text.worker import LLMEngineError, generate_text_response, llm_capabilities
 from services.agents.voice.errors import VoiceEngineError
-from services.agents.text.worker import generate_text_response
 from services.agents.visual.worker import generate_visual_strokes
 from services.agents.voice.tts.worker import synthesize_segments
 from services.protocol import ProtocolValidationError, ProtocolValidator
@@ -32,12 +32,27 @@ def health() -> dict:
     }
 
 
+@app.get("/v1/llm/capabilities")
+def llm_runtime_capabilities() -> dict:
+    return llm_capabilities(probe=True)
+
+
 @app.post("/v1/orchestrate")
 def orchestrate(req: OrchestrateRequest) -> dict:
     if len(req.prompt) > 4000:
         raise HTTPException(status_code=422, detail={"error": "prompt_too_long", "max_chars": 4000})
 
-    text = generate_text_response(req.prompt)
+    try:
+        text = generate_text_response(req.prompt)
+    except LLMEngineError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "llm_engine_unavailable",
+                "provider": exc.provider,
+                "message": str(exc),
+            },
+        ) from exc
     strokes = generate_visual_strokes(req.prompt)
     try:
         voice = synthesize_segments(text)

@@ -75,9 +75,18 @@ svg {
   margin-bottom: 12px;
 }
 
-.voice-panel h3 {
+.voice-panel h3,
+.setup-panel h3 {
   margin: 0 0 8px 0;
   font-size: 14px;
+}
+
+.setup-panel {
+  margin-bottom: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(2, 6, 23, 0.45);
 }
 
 .muted {

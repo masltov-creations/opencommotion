@@ -1,5 +1,5 @@
 {
-  "run_id": "closeout-wave-01",
+  "run_id": "main-wave-01",
   "objective": "Ship stable typed+voice+visual turn flow with deterministic playback.",
   "scope_in": [
     "Schema-safe event envelopes",

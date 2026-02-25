@@ -1,6 +1,6 @@
-# Closeout Skill Scaffolds
+# Implementation Skill Scaffolds
 
-Use these scaffold files to run the final implementation wave in parallel with clear ownership and gates.
+Use these scaffold files to run implementation waves in parallel with clear ownership and gates.
 
 ## Recommended execution order
 

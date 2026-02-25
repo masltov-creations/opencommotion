@@ -1,6 +1,6 @@
 # OpenCommotion Release Runbook
 
-This runbook defines the release-candidate path on a clean machine.
+This runbook defines the release-readiness path on a clean machine.
 
 ## 1) Prerequisites
 
@@ -55,12 +55,12 @@ This command:
 4. Verifies output contract (`turn_id`, `patch_count`, `text`, `voice_uri`),
 5. Shuts down stack.
 
-## 6) Release-candidate completion criteria
+## 6) Release-readiness criteria
 
 - `make test-complete` passes
 - `make fresh-agent-e2e` passes
 - `README.md`, `docs/AGENT_CONNECTION.md`, `docs/USAGE_PATTERNS.md`, and `docs/ARCHITECTURE.md` are aligned with behavior
-- `docs/CLOSEOUT_PLAN.md` status snapshot shows all completion gates checked
+- `PROJECT.md` progress checklist and active tasks are updated with current state
 
 ## 7) Suggested release tag flow
 

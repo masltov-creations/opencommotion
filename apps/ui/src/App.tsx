@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { buildScene, type Patch, type SceneActor } from './runtime/sceneRuntime'
 
@@ -29,6 +29,29 @@ type ArtifactResult = {
   title: string
   score?: number
   match_mode?: string
+}
+
+type VoiceEngineDetails = {
+  selected_engine?: string
+  strict_real_engines?: boolean
+  [key: string]: unknown
+}
+
+type LlmCapabilities = {
+  selected_provider?: string
+  effective_provider?: string
+  active_provider_ready?: boolean
+  effective_ready?: boolean
+  allow_fallback?: boolean
+  message?: string
+}
+
+type RuntimeCapabilities = {
+  llm: LlmCapabilities
+  voice: {
+    stt: VoiceEngineDetails
+    tts: VoiceEngineDetails
+  }
 }
 
 const gateway = (import.meta as { env?: Record<string, string> }).env?.VITE_GATEWAY_URL || 'http://127.0.0.1:8000'
@@ -86,9 +109,33 @@ export default function App() {
   const [transcript, setTranscript] = useState('')
   const [transcribing, setTranscribing] = useState(false)
   const [lastError, setLastError] = useState('')
+  const [runtimeCaps, setRuntimeCaps] = useState<RuntimeCapabilities | null>(null)
+  const [capsLoading, setCapsLoading] = useState(false)
+  const [capsError, setCapsError] = useState('')
 
   const session = useMemo(() => `sess-${Math.random().toString(36).slice(2)}`, [])
   const lastTurnRef = useRef('')
+
+  const refreshRuntimeCapabilities = useCallback(async () => {
+    if (isTestMode) {
+      return
+    }
+    setCapsLoading(true)
+    setCapsError('')
+    try {
+      const res = await fetch(`${gateway}/v1/runtime/capabilities`)
+      if (!res.ok) {
+        throw new Error(`runtime capabilities failed (${res.status})`)
+      }
+      const data = (await res.json()) as RuntimeCapabilities
+      setRuntimeCaps(data)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown capability failure'
+      setCapsError(msg)
+    } finally {
+      setCapsLoading(false)
+    }
+  }, [])
 
   function loadTurn(turn: TurnResult): void {
     if (!turn || turn.turn_id === lastTurnRef.current) {
@@ -255,6 +302,19 @@ export default function App() {
     }
   }, [session])
 
+  useEffect(() => {
+    if (isTestMode) {
+      return
+    }
+    refreshRuntimeCapabilities()
+    const timer = window.setInterval(() => {
+      refreshRuntimeCapabilities()
+    }, 12000)
+    return () => {
+      window.clearInterval(timer)
+    }
+  }, [refreshRuntimeCapabilities])
+
   const scene = useMemo(() => buildScene(patches, playbackMs), [patches, playbackMs])
   const appliedCount = useMemo(
     () => patches.filter((patch) => (patch.at_ms || 0) <= playbackMs).length,
@@ -265,12 +325,33 @@ export default function App() {
   const lineChart = scene.charts.adoption_curve
   const pieChart = scene.charts.saturation_pie
   const audioUri = voice?.segments?.[0]?.audio_uri
+  const llmProvider = runtimeCaps?.llm?.selected_provider || 'unknown'
+  const llmEffectiveProvider = runtimeCaps?.llm?.effective_provider || llmProvider
+  const llmReady = runtimeCaps?.llm?.effective_ready === true
+  const sttEngine = runtimeCaps?.voice?.stt?.selected_engine || 'unknown'
+  const ttsEngine = runtimeCaps?.voice?.tts?.selected_engine || 'unknown'
 
   return (
     <div className="layout">
       <aside className="panel">
         <h1>OpenCommotion</h1>
         <p>Text + voice + motion synchronized visual computing.</p>
+        <div className="setup-panel">
+          <h3>Setup Status</h3>
+          <p className="muted">LLM provider: {llmProvider}</p>
+          <p className="muted">Active route: {llmEffectiveProvider}</p>
+          <p className="muted">LLM ready: {llmReady ? 'yes' : 'needs config'}</p>
+          <p className="muted">STT engine: {sttEngine}</p>
+          <p className="muted">TTS engine: {ttsEngine}</p>
+          {runtimeCaps?.llm?.message ? <p className="error">{runtimeCaps.llm.message}</p> : null}
+          {capsError ? <p className="error">{capsError}</p> : null}
+          <div className="row">
+            <button onClick={refreshRuntimeCapabilities} disabled={capsLoading}>
+              {capsLoading ? 'Refreshing...' : 'Refresh Setup'}
+            </button>
+          </div>
+          <p className="muted">Need guided setup? Run `make setup-wizard` in your terminal.</p>
+        </div>
         <textarea rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
 
         <div className="row">

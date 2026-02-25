@@ -22,7 +22,7 @@
   ],
   "scope_out": [
     "Cloud-only voice providers",
-    "Multilingual optimization beyond baseline English closeout target"
+    "Multilingual optimization beyond baseline English target"
   ],
   "implementation_checklist": [
     "Select local STT and TTS engine implementations and codify config",

@@ -5,7 +5,7 @@ Agent specs define tuned roles for parallel delivery.
 Run `python3 scripts/spawn_expert_agents.py` to initialize runtime state files.
 Run `python3 scripts/init_wave_context.py --run-id <wave-id>` to initialize `current-wave-context.json` and `lane-ownership.json`.
 
-Closeout skill scaffolds are in `agents/scaffolds/`.
+Implementation skill scaffolds are in `agents/scaffolds/`.
 - Start with `agents/scaffolds/skill-agent-orchestration-ops.json` for shared context + coordination protocol.
 - Use `agents/scaffolds/templates/` for wave context, lane ownership, and handoff report records.
 

@@ -28,7 +28,7 @@
     "Add RELEASE.md with setup, test, and demo commands",
     "Add CONTRIBUTING.md quality gate expectations and branch workflow",
     "Include examples for typed turn and voice turn usage",
-    "Record final closeout status in PROJECT.md"
+    "Record current implementation status in PROJECT.md"
   ],
   "validation_commands": [
     "make test-all",
@@ -41,11 +41,11 @@
   ],
   "handoff_artifacts": [
     "updated docs and release notes",
-    "final closeout checklist marked complete",
-    "project status update with release-candidate date"
+    "project checklist status updated in PROJECT.md",
+    "project status update with release-readiness date"
   ],
   "risks": [
-    "Docs drift if implementation changes late in closeout",
+    "Docs drift if implementation changes late in a wave",
     "Mitigation: docs update is part of final merge gate, not post-merge task"
   ]
 }
