@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 from time import perf_counter
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 from services.agents.text.worker import LLMEngineError, generate_text_response, llm_capabilities
@@ -40,6 +41,10 @@ class OrchestrateRequest(BaseModel):
     prompt: str
 
 
+class RuntimeConfigApplyRequest(BaseModel):
+    values: dict[str, str] = Field(default_factory=dict)
+
+
 app = FastAPI(title="OpenCommotion Orchestrator", version="0.5.0")
 
 
@@ -70,6 +75,18 @@ def metrics() -> Response:
 @app.get("/v1/llm/capabilities")
 def llm_runtime_capabilities() -> dict:
     return llm_capabilities(probe=True)
+
+
+@app.post("/v1/runtime/config/apply")
+def runtime_config_apply(req: RuntimeConfigApplyRequest) -> dict:
+    applied: list[str] = []
+    for key, value in req.values.items():
+        clean_key = str(key).strip()
+        if not clean_key.startswith("OPENCOMMOTION_"):
+            continue
+        os.environ[clean_key] = str(value).strip()
+        applied.append(clean_key)
+    return {"ok": True, "applied_keys": sorted(set(applied))}
 
 
 @app.post("/v1/orchestrate")

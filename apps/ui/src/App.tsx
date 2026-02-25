@@ -244,9 +244,18 @@ export default function App() {
       if (!res.ok) {
         throw new Error(await buildApiErrorMessage(res, 'setup save'))
       }
-      const data = (await res.json()) as { ok: boolean; restart_required?: boolean; warnings?: string[] }
+      const data = (await res.json()) as {
+        ok: boolean
+        restart_required?: boolean
+        applied_runtime?: boolean
+        warnings?: string[]
+      }
       setSetupWarnings(data.warnings || [])
-      setSetupMessage(data.restart_required ? 'Setup saved. Restart stack to apply all changes.' : 'Setup saved.')
+      setSetupMessage(
+        data.restart_required
+          ? 'Setup saved. Automatic apply was partial; restart stack to apply all changes.'
+          : 'Setup saved and applied.',
+      )
       await refreshRuntimeCapabilities()
       await refreshRuns()
     } catch (err) {

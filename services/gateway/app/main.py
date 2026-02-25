@@ -266,6 +266,24 @@ def _apply_setup_values(values: dict[str, str]) -> None:
         os.environ[key] = value
 
 
+async def _apply_setup_to_orchestrator(values: dict[str, str]) -> tuple[bool, str]:
+    if not values:
+        return True, ""
+    try:
+        async with httpx.AsyncClient(timeout=6) as client:
+            response = await client.post(
+                f"{ORCHESTRATOR_URL}/v1/runtime/config/apply",
+                json={"values": values},
+            )
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, dict) or payload.get("ok") is not True:
+            return False, "orchestrator runtime apply returned an unexpected response"
+        return True, ""
+    except Exception as exc:  # noqa: BLE001
+        return False, str(exc)
+
+
 async def _emit_agent_runtime_event(event_type: str, payload: dict) -> None:
     session_id = str(payload.get("session_id", payload.get("run_id", "agent-runtime")))
     turn_id = str(payload.get("turn_id", payload.get("queue_id", uuid4())))
@@ -509,7 +527,7 @@ def setup_validate(req: SetupValidateRequest) -> dict:
 
 
 @app.post("/v1/setup/state")
-def setup_save(req: SetupStateRequest) -> dict:
+async def setup_save(req: SetupStateRequest) -> dict:
     current = _build_setup_state()
     incoming = normalized_editable(req.values)
     merged = {**current, **incoming}
@@ -520,11 +538,25 @@ def setup_save(req: SetupStateRequest) -> dict:
     ENV_PATH.parent.mkdir(parents=True, exist_ok=True)
     write_env(ENV_PATH, merged)
     _apply_setup_values(incoming)
+    restart_required = False
+    warnings = list(validation["warnings"])
+    applied_runtime = True
+    apply_ok, apply_error = await _apply_setup_to_orchestrator(incoming)
+    if not apply_ok:
+        applied_runtime = False
+        restart_required = True
+        warnings.append(
+            (
+                "Setup saved, but automatic runtime apply failed for orchestrator. "
+                f"Restart stack to apply all changes. Details: {apply_error}"
+            )
+        )
     return {
         "ok": True,
-        "restart_required": True,
+        "restart_required": restart_required,
+        "applied_runtime": applied_runtime,
         "saved_keys": sorted(incoming.keys()),
-        "warnings": validation["warnings"],
+        "warnings": warnings,
     }
 
 

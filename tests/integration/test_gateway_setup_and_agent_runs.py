@@ -70,7 +70,8 @@ def test_setup_validate_and_save(tmp_path, monkeypatch) -> None:
         assert saved.status_code == 200
         saved_payload = saved.json()
         assert saved_payload["ok"] is True
-        assert saved_payload["restart_required"] is True
+        assert saved_payload["restart_required"] is False
+        assert saved_payload["applied_runtime"] is True
 
         state = client.get("/v1/setup/state")
         assert state.status_code == 200
