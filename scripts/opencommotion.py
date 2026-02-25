@@ -83,6 +83,44 @@ def _run(command: list[str]) -> int:
     return int(completed.returncode)
 
 
+def _vite_entry_candidates() -> list[Path]:
+    return [
+        ROOT / "node_modules" / "vite" / "bin" / "vite.js",
+        ROOT / "apps" / "ui" / "node_modules" / "vite" / "bin" / "vite.js",
+    ]
+
+
+def _ui_toolchain_ready() -> bool:
+    return any(path.exists() for path in _vite_entry_candidates())
+
+
+def _repair_vite_exec_bits() -> None:
+    candidates = [
+        ROOT / "node_modules" / ".bin" / "vite",
+        ROOT / "apps" / "ui" / "node_modules" / ".bin" / "vite",
+    ]
+    for path in candidates:
+        if not path.exists():
+            continue
+        try:
+            mode = path.stat().st_mode
+            path.chmod(mode | 0o111)
+        except OSError:
+            # Best effort only. Fallback execution path below avoids requiring +x.
+            pass
+
+
+def _install_ui_dependencies() -> int:
+    if shutil.which("npm") is None:
+        return 127
+    print("Installing UI dependencies...")
+    code = _run(["npm", "install", "--silent"])
+    if code != 0:
+        return code
+    # Workspaces should be covered by root install; keep this as a repair pass for older checkouts.
+    return _run(["npm", "install", "--workspace", "@opencommotion/ui", "--silent"])
+
+
 def cmd_install() -> int:
     return _run(["bash", "scripts/install_local.sh"])
 
@@ -137,6 +175,12 @@ def _ensure_ui_dist_current() -> int:
     if shutil.which("npm") is None:
         return 0
 
+    if not _ui_toolchain_ready():
+        deps_code = _install_ui_dependencies()
+        if deps_code != 0:
+            print("UI dependency install failed; cannot build UI assets.")
+            return deps_code
+
     source_hash = _ui_source_hash()
     index_path = ROOT / "apps" / "ui" / "dist" / "index.html"
     previous_hash = UI_BUILD_MARKER.read_text(encoding="utf-8").strip() if UI_BUILD_MARKER.exists() else ""
@@ -144,10 +188,20 @@ def _ensure_ui_dist_current() -> int:
         return 0
 
     print("Building UI assets...")
+    _repair_vite_exec_bits()
     code = _run(["npm", "run", "ui:build"])
     if code != 0:
-        print("npm ui:build failed. Retrying via node + vite.js (permission-safe path)...")
-        code = _run_ui_build_via_node()
+        # code 127 usually means missing vite in older/misaligned installs.
+        if code == 127:
+            print("npm ui:build returned 127. Repairing UI dependencies and retrying...")
+            deps_code = _install_ui_dependencies()
+            if deps_code != 0:
+                return deps_code
+            _repair_vite_exec_bits()
+            code = _run(["npm", "run", "ui:build"])
+        if code != 0:
+            print("npm ui:build failed. Retrying via node + vite.js (permission-safe path)...")
+            code = _run_ui_build_via_node()
     if code != 0:
         print(
             "UI build failed. If you saw 'vite: Permission denied', run: "
@@ -164,11 +218,7 @@ def _run_ui_build_via_node() -> int:
     if node_bin is None:
         return 127
 
-    candidates = [
-        ROOT / "node_modules" / "vite" / "bin" / "vite.js",
-        ROOT / "apps" / "ui" / "node_modules" / "vite" / "bin" / "vite.js",
-    ]
-    for vite_entry in candidates:
+    for vite_entry in _vite_entry_candidates():
         if not vite_entry.exists():
             continue
         completed = subprocess.run(
