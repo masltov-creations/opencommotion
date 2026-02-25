@@ -46,6 +46,8 @@ If `opencommotion` is not found, add it:
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
+The setup panel is only shown in setup mode (`/?setup=1`) and stays hidden in normal app usage.
+
 Manual start (if needed):
 
 ```bash
@@ -96,7 +98,7 @@ bash scripts/setup.sh
 
 ## First 2 Minutes In The App
 
-1. Click **Settings & Setup**.
+1. Open setup mode: http://127.0.0.1:8000/?setup=1
 2. Choose your LLM provider and voice policy.
 3. Click **Validate Setup** and **Save Setup**.
 4. Enter a prompt and click **Run Turn**.
@@ -190,8 +192,7 @@ opencommotion run
 ```
 
 5. Configure Codex provider in the app:
-   - Open http://127.0.0.1:8000
-   - Click **Settings & Setup**
+   - Open http://127.0.0.1:8000/?setup=1
    - Setup Wizard -> provider: `codex-cli`
    - Binary: `codex` (or absolute path)
    - Voice policy: for first test, keep strict real-engine mode off unless your TTS engine is fully configured

@@ -19,9 +19,7 @@ test('typed + voice + artifact flow', async ({ page }) => {
 })
 
 test('setup wizard + run manager flow', async ({ page }) => {
-  await page.goto('/')
-
-  await page.getByRole('button', { name: 'Settings & Setup' }).click()
+  await page.goto('/?setup=1')
   await page.getByRole('button', { name: 'Load Wizard' }).click()
   await page.getByRole('button', { name: 'Validate Setup' }).click()
   await expect(page.getByText(/Setup validation passed|Unsupported/).first()).toBeVisible()

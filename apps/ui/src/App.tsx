@@ -140,7 +140,6 @@ export default function App() {
   const [runtimeCaps, setRuntimeCaps] = useState<RuntimeCapabilities | null>(null)
   const [capsLoading, setCapsLoading] = useState(false)
   const [capsError, setCapsError] = useState('')
-  const [showSetup, setShowSetup] = useState(false)
   const [setupStep, setSetupStep] = useState(1)
   const [setupDraft, setSetupDraft] = useState<Record<string, string>>({})
   const [setupErrors, setSetupErrors] = useState<string[]>([])
@@ -161,6 +160,14 @@ export default function App() {
     return { 'x-api-key': gatewayApiKey }
   }, [])
   const lastTurnRef = useRef('')
+  const setupMode = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return false
+    }
+    const raw = new URLSearchParams(window.location.search).get('setup') || ''
+    const value = raw.trim().toLowerCase()
+    return value === '1' || value === 'true' || value === 'yes'
+  }, [])
 
   const refreshRuntimeCapabilities = useCallback(async () => {
     if (isTestMode) {
@@ -632,11 +639,15 @@ export default function App() {
     if (isTestMode) {
       return
     }
-    refreshRuntimeCapabilities()
-    loadSetupState()
+    if (setupMode) {
+      refreshRuntimeCapabilities()
+      loadSetupState()
+    }
     refreshRuns()
     const timer = window.setInterval(() => {
-      refreshRuntimeCapabilities()
+      if (setupMode) {
+        refreshRuntimeCapabilities()
+      }
     }, 12000)
     const runTimer = window.setInterval(() => {
       refreshRuns()
@@ -645,7 +656,7 @@ export default function App() {
       window.clearInterval(timer)
       window.clearInterval(runTimer)
     }
-  }, [refreshRuntimeCapabilities, loadSetupState, refreshRuns])
+  }, [refreshRuntimeCapabilities, loadSetupState, refreshRuns, setupMode])
 
   const scene = useMemo(() => buildScene(patches, playbackMs), [patches, playbackMs])
   const appliedCount = useMemo(
@@ -669,12 +680,7 @@ export default function App() {
       <aside className="panel">
         <h1>OpenCommotion</h1>
         <p>Text + voice + motion synchronized visual computing.</p>
-        <div className="row">
-          <button onClick={() => setShowSetup((current) => !current)}>
-            {showSetup ? 'Hide Settings & Setup' : 'Settings & Setup'}
-          </button>
-        </div>
-        {showSetup ? (
+        {setupMode ? (
           <div className="setup-panel">
             <h3>Setup Status</h3>
             <p className="muted">LLM provider: {llmProvider}</p>
@@ -794,7 +800,7 @@ export default function App() {
             {setupErrors.map((error) => (
               <p className="error" key={error}>{error}</p>
             ))}
-            <p className="muted">CLI fallback: `python3 scripts/opencommotion.py setup`</p>
+            <p className="muted">CLI fallback: `opencommotion setup`</p>
           </div>
         ) : null}
         <div className="setup-panel">
