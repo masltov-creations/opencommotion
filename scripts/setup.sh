@@ -57,12 +57,17 @@ open_browser() {
   return 1
 }
 
+run_opencommotion() {
+  # Use bash explicitly so setup works even if repo file mode does not preserve +x on pull.
+  bash "$OPENCOMMOTION_CMD" "$@"
+}
+
 if ! command -v python3 >/dev/null 2>&1; then
   echo "python3 is required" >&2
   exit 1
 fi
 
-"$OPENCOMMOTION_CMD" -install
+run_opencommotion -install
 
 if [[ "$AUTO_CLI_SETUP" -eq 1 ]]; then
   if [[ ! -t 0 ]]; then
@@ -70,11 +75,11 @@ if [[ "$AUTO_CLI_SETUP" -eq 1 ]]; then
     echo "Run this command in an interactive shell: bash scripts/setup.sh --with-cli-setup" >&2
     exit 1
   fi
-  "$OPENCOMMOTION_CMD" -setup
+  run_opencommotion -setup
 fi
 
 if [[ "$AUTO_RUN" -eq 1 ]]; then
-  "$OPENCOMMOTION_CMD" -run
+  run_opencommotion -run
   echo "Configure providers in setup mode: $SETUP_URL"
   if [[ "$AUTO_OPEN" -eq 1 ]]; then
     should_open="yes"
