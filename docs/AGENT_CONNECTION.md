@@ -12,26 +12,26 @@ Use this exact flow if you have never run the repo before:
 
 ```bash
 cd /mnt/d/Dev/OpenCommotion
-python3 scripts/opencommotion.py install
-python3 scripts/opencommotion.py setup
-python3 scripts/opencommotion.py run
+opencommotion install
+opencommotion setup
+opencommotion run
 curl -sS http://127.0.0.1:8000/health
 curl -sS http://127.0.0.1:8001/health
 python scripts/agent_examples/robust_turn_client.py --session first-run --prompt "quick agent bootstrap check" --no-save
-python3 scripts/opencommotion.py down
+opencommotion down
 ```
 
 Notes:
 - Keep all Python calls on the project environment: `source .venv/bin/activate` or use `.venv/bin/python`.
-- If `opencommotion.py run` is running in one terminal, run client commands from a second terminal.
-- For a full fresh-consumer proof in one command, run `python3 scripts/opencommotion.py fresh-agent-e2e`.
+- If `opencommotion run` is running in one terminal, run client commands from a second terminal.
+- For a full fresh-consumer proof in one command, run `opencommotion fresh-agent-e2e`.
 
 ## 1) Start the stack
 
 ```bash
 cd /mnt/d/Dev/OpenCommotion
 cp .env.example .env
-python3 scripts/opencommotion.py run
+opencommotion run
 ```
 
 Default endpoints:
@@ -42,7 +42,7 @@ Default endpoints:
 - Runtime capabilities (LLM + voice): `http://127.0.0.1:8000/v1/runtime/capabilities`
 
 Contributor note:
-- For hot-reload UI development, run `python3 scripts/opencommotion.py dev` and use `http://127.0.0.1:5173`.
+- For hot-reload UI development, run `opencommotion dev` and use `http://127.0.0.1:5173`.
 
 ## 1.1) API key and websocket auth
 
@@ -118,7 +118,7 @@ curl -sS http://127.0.0.1:8000/v1/runtime/capabilities
 Production note:
 - Set `OPENCOMMOTION_VOICE_REQUIRE_REAL_ENGINES=true` to enforce real STT/TTS engines.
 - In strict mode, voice endpoints and turn orchestration return `503` when only fallback engines are available.
-- Run `python3 scripts/opencommotion.py preflight` before starting production agents.
+- Run `opencommotion preflight` before starting production agents.
 
 ## 5) Artifact memory connection points
 
@@ -256,7 +256,7 @@ Use this when Codex is acting as an execution agent against OpenCommotion:
 1. Start stack:
 
 ```bash
-python3 scripts/opencommotion.py run
+opencommotion run
 ```
 
 2. Run the robust example agent client:
@@ -278,7 +278,7 @@ python scripts/agent_examples/robust_turn_client.py \
 4. Stop stack:
 
 ```bash
-python3 scripts/opencommotion.py down
+opencommotion down
 ```
 
 ## 10) Example: OpenClaw and other runtimes
@@ -332,7 +332,7 @@ curl -sS -X POST http://127.0.0.1:8000/v1/orchestrate \
 ## 12) Stop stack
 
 ```bash
-python3 scripts/opencommotion.py down
+opencommotion down
 ```
 
 ## 13) Multi-agent operating context (required before execution)
@@ -376,10 +376,10 @@ Context packet template:
     "No merge without test evidence"
   ],
   "quality_gates": [
-    "python3 scripts/opencommotion.py test",
-    "python3 scripts/opencommotion.py test-e2e",
-    "python3 scripts/opencommotion.py test-complete",
-    "python3 scripts/opencommotion.py preflight",
+    "opencommotion test",
+    "opencommotion test-e2e",
+    "opencommotion test-complete",
+    "opencommotion preflight",
     "npm run ui:build"
   ],
   "handoff_required": [
@@ -465,13 +465,13 @@ Handoff report template:
 
 ## 17) Troubleshooting for first-time agents
 
-- Health endpoint fails after `opencommotion.py run`:
+- Health endpoint fails after `opencommotion run`:
   - check `runtime/logs/gateway.log`
   - check `runtime/logs/orchestrator.log`
-  - rerun `python3 scripts/opencommotion.py down && python3 scripts/opencommotion.py run`
+  - rerun `opencommotion down && opencommotion run`
 - Browser E2E fails with missing system libs (example: `libnspr4.so`):
   - run `bash scripts/ensure_playwright_libs.sh`
-  - rerun `python3 scripts/opencommotion.py test-e2e`
+  - rerun `opencommotion test-e2e`
 - Python module error (example: `No module named httpx`):
   - run `. .venv/bin/activate`
   - rerun command with `.venv/bin/python ...`

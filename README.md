@@ -39,29 +39,35 @@ If browser auto-open is blocked by your environment, open manually:
 - http://127.0.0.1:8000
 - PowerShell: `Start-Process http://127.0.0.1:8000`
 To avoid `Permission denied`, run setup via `bash scripts/setup.sh` (as shown above), not `./scripts/setup.sh`.
+Setup installs an `opencommotion` launcher into `~/.local/bin`.
+If `opencommotion` is not found, add it:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
 
 Manual start (if needed):
 
 ```bash
-python3 scripts/opencommotion.py run
+opencommotion run
 ```
 
 Fast command aliases (same script, shorter typing):
 
 ```bash
-python3 scripts/opencommotion.py -setup
-python3 scripts/opencommotion.py -run
-python3 scripts/opencommotion.py -status
-python3 scripts/opencommotion.py -stop
+opencommotion -setup
+opencommotion -run
+opencommotion -status
+opencommotion -stop
 ```
 
 PowerShell equivalent:
 
 ```powershell
-py scripts\opencommotion.py -setup
-py scripts\opencommotion.py -run
-py scripts\opencommotion.py -status
-py scripts\opencommotion.py -stop
+opencommotion -setup
+opencommotion -run
+opencommotion -status
+opencommotion -stop
 ```
 
 Open the app:
@@ -70,15 +76,15 @@ Open the app:
 Stop the app:
 
 ```bash
-python3 scripts/opencommotion.py down
+opencommotion down
 ```
 
 If startup fails due to a port conflict, the script now exits with a clear error.
 Common recovery path:
 
 ```bash
-python3 scripts/opencommotion.py down
-python3 scripts/opencommotion.py run
+opencommotion down
+opencommotion run
 ```
 
 If you ever see `bash: ./scripts/setup.sh: Permission denied`:
@@ -103,19 +109,19 @@ bash scripts/setup.sh
 Start:
 
 ```bash
-python3 scripts/opencommotion.py run
+opencommotion run
 ```
 
 Check health:
 
 ```bash
-python3 scripts/opencommotion.py status
+opencommotion status
 ```
 
 Stop:
 
 ```bash
-python3 scripts/opencommotion.py down
+opencommotion down
 ```
 
 ## Connect Your Agents (Python-first)
@@ -172,15 +178,15 @@ codex login
 3. Verify Codex CLI and app status:
 
 ```bash
-python3 scripts/opencommotion.py doctor
-python3 scripts/opencommotion.py status
+opencommotion doctor
+opencommotion status
 codex --version
 ```
 
 4. If app is not running, start it:
 
 ```bash
-python3 scripts/opencommotion.py run
+opencommotion run
 ```
 
 5. Configure Codex provider in the app:
@@ -227,7 +233,7 @@ curl -sS -X POST http://127.0.0.1:8000/v1/agent-runs/<run_id>/enqueue \
 9. Stop services when done:
 
 ```bash
-python3 scripts/opencommotion.py down
+opencommotion down
 ```
 
 Headless/CI note:
@@ -255,9 +261,9 @@ Voice engines:
 ## Diagnostics
 
 ```bash
-python3 scripts/opencommotion.py status
-python3 scripts/opencommotion.py preflight
-python3 scripts/opencommotion.py doctor
+opencommotion status
+opencommotion preflight
+opencommotion doctor
 ```
 
 ## Core API Surface
@@ -307,11 +313,11 @@ Backs up:
 ## Validation Gates
 
 ```bash
-python3 scripts/opencommotion.py test
-python3 scripts/opencommotion.py test-ui
-python3 scripts/opencommotion.py test-e2e
-python3 scripts/opencommotion.py test-complete
-python3 scripts/opencommotion.py fresh-agent-e2e
+opencommotion test
+opencommotion test-ui
+opencommotion test-e2e
+opencommotion test-complete
+opencommotion fresh-agent-e2e
 ```
 
 ## Extend It

@@ -8,6 +8,7 @@ AUTO_RUN=1
 AUTO_OPEN=1
 AUTO_CLI_SETUP=0
 APP_URL="http://127.0.0.1:8000"
+OPENCOMMOTION_CMD="$ROOT/opencommotion"
 
 for arg in "$@"; do
   case "$arg" in
@@ -60,7 +61,7 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 1
 fi
 
-python3 scripts/opencommotion.py install
+"$OPENCOMMOTION_CMD" -install
 
 if [[ "$AUTO_CLI_SETUP" -eq 1 ]]; then
   if [[ ! -t 0 ]]; then
@@ -68,11 +69,11 @@ if [[ "$AUTO_CLI_SETUP" -eq 1 ]]; then
     echo "Run this command in an interactive shell: bash scripts/setup.sh --with-cli-setup" >&2
     exit 1
   fi
-  python3 scripts/opencommotion.py setup
+  "$OPENCOMMOTION_CMD" -setup
 fi
 
 if [[ "$AUTO_RUN" -eq 1 ]]; then
-  python3 scripts/opencommotion.py run
+  "$OPENCOMMOTION_CMD" -run
   echo "Configure providers in the app: Settings & Setup."
   if [[ "$AUTO_OPEN" -eq 1 ]]; then
     should_open="yes"
@@ -101,5 +102,5 @@ else
   if [[ "$AUTO_CLI_SETUP" -eq 0 ]]; then
     echo "Configure providers in the app: Settings & Setup."
   fi
-  echo "Run: python3 scripts/opencommotion.py run"
+  echo "Run: opencommotion -run"
 fi

@@ -51,7 +51,7 @@ sys.exit(0)
 PY
   then
     echo "Port conflict: $label needs 127.0.0.1:$port, but it is already in use." >&2
-    echo "Try: python3 scripts/opencommotion.py down" >&2
+    echo "Try: opencommotion -stop" >&2
     exit 1
   fi
 }

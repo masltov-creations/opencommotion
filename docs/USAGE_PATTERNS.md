@@ -135,26 +135,26 @@ When using `brush/compile`:
 
 ## 10) Consumer and agent onboarding checklist
 
-- Stack starts with `python3 scripts/opencommotion.py run` (or `python3 scripts/opencommotion.py dev` for contributor hot reload).
+- Stack starts with `opencommotion run` (or `opencommotion dev` for contributor hot reload).
 - Health checks pass.
 - Run one typed turn and verify render output.
 - Run one voice synth call and verify audio URI playback.
 - Run one artifact save/search/recall cycle.
 - Run one autonomous run-manager cycle (`create -> enqueue -> run_once`).
 - Simulate one websocket reconnect and confirm recovery.
-- Run quality gates (`python3 scripts/opencommotion.py test-complete`).
-- Run fresh consumer agent proof (`python3 scripts/opencommotion.py fresh-agent-e2e`).
-- Run voice preflight (`python3 scripts/opencommotion.py preflight`).
+- Run quality gates (`opencommotion test-complete`).
+- Run fresh consumer agent proof (`opencommotion fresh-agent-e2e`).
+- Run voice preflight (`opencommotion preflight`).
 
 ## 11) Minimal run commands
 
 ```bash
-python3 scripts/opencommotion.py run
+opencommotion run
 . .venv/bin/activate
 python scripts/agent_examples/robust_turn_client.py --session demo-1 --prompt "moonwalk adoption chart"
 python scripts/agent_examples/codex_cli_turn_client.py
 python scripts/agent_examples/openclaw_cli_turn_client.py
-python3 scripts/opencommotion.py down
+opencommotion down
 ```
 
 ## 12) Multi-agent execution mode (implementation waves)

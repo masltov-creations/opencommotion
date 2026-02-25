@@ -22,8 +22,10 @@ if [[ ! -f .env ]]; then
   echo "Created .env from .env.example"
 fi
 
+bash scripts/install_launcher.sh
+
 echo "Install complete."
 echo "Next steps:"
-echo "  1) python3 scripts/opencommotion.py setup"
-echo "  2) python3 scripts/opencommotion.py run"
+echo "  1) opencommotion -setup"
+echo "  2) opencommotion -run"
 echo "  3) open http://127.0.0.1:8000"

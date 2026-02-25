@@ -288,8 +288,8 @@ def main() -> int:
     print("\nNext steps:")
     for tip in tips:
         print(f"- {tip}")
-    print("- python3 scripts/opencommotion.py preflight")
-    print("- python3 scripts/opencommotion.py run")
+    print("- opencommotion -preflight")
+    print("- opencommotion -run")
     print("- open http://127.0.0.1:8000")
     return 0
 
