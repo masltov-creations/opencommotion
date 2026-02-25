@@ -40,10 +40,18 @@ If browser auto-open is blocked by your environment, open manually:
 - PowerShell: `Start-Process http://127.0.0.1:8000`
 To avoid `Permission denied`, run setup via `bash scripts/setup.sh` (as shown above), not `./scripts/setup.sh`.
 Setup installs an `opencommotion` launcher into `~/.local/bin`.
+On Windows + WSL, setup also installs `opencommotion.cmd` into `%USERPROFILE%\.local\bin` and adds it to user PATH if needed.
+If this is your first install, restart PowerShell once so `opencommotion` is recognized.
 If `opencommotion` is not found, add it:
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
+```
+
+PowerShell fallback if PATH has not refreshed yet:
+
+```powershell
+& "$env:USERPROFILE\.local\bin\opencommotion.cmd" -status
 ```
 
 The setup panel is only shown in setup mode (`/?setup=1`) and stays hidden in normal app usage.
@@ -103,6 +111,7 @@ bash scripts/setup.sh
 3. Click **Validate Setup** and **Save Setup**.
 4. Enter a prompt and click **Run Turn**.
 5. Watch synchronized text + voice + animation playback.
+If backend voice engine is unavailable, the UI automatically falls back to browser speech so narration still works.
 6. Save interesting results as artifacts.
 7. Use **Agent Run Manager** when you want queued/autonomous runs.
 
@@ -273,6 +282,7 @@ LLM providers:
 Voice engines:
 - STT: `auto|faster-whisper|vosk|openai-compatible|text-fallback`
 - TTS: `auto|piper|espeak|openai-compatible|tone-fallback`
+- On Windows/WSL with `auto`, backend also attempts Windows SAPI before tone fallback.
 
 ## Diagnostics
 

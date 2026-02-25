@@ -22,7 +22,12 @@ if [[ ! -f .env ]]; then
   echo "Created .env from .env.example"
 fi
 
+bash scripts/install_voice_deps.sh
+python scripts/configure_voice_defaults.py
 bash scripts/install_launcher.sh
+if ! bash scripts/install_windows_shim.sh; then
+  echo "Windows launcher install skipped. You can still run from WSL with: opencommotion -run"
+fi
 
 echo "Install complete."
 echo "Next steps:"

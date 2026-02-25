@@ -33,7 +33,7 @@ VOICE_OPENAI_TTS_MODEL_ENV = "OPENCOMMOTION_VOICE_TTS_MODEL"
 VOICE_OPENAI_TIMEOUT_ENV = "OPENCOMMOTION_VOICE_OPENAI_TIMEOUT_S"
 
 VALID_TTS_ENGINES = {"auto", "piper", "espeak", "openai-compatible", "tone-fallback"}
-REAL_TTS_ENGINES = {"piper", "espeak", "openai-compatible"}
+REAL_TTS_ENGINES = {"piper", "espeak", "openai-compatible", "windows-sapi"}
 
 
 def synthesize_segments(text: str, voice: str = "opencommotion-local") -> dict:
@@ -91,6 +91,7 @@ def tts_capabilities() -> dict:
     openai_api_key = os.getenv(VOICE_OPENAI_API_KEY_ENV, "").strip()
     openai_key_required = voice_openai_api_key_required(openai_base_url)
     openai_ready = voice_openai_ready(openai_base_url, openai_model, openai_api_key)
+    windows_sapi_ready = _powershell_binary() is not None
 
     return {
         "selected_engine": selected_engine,
@@ -111,6 +112,9 @@ def tts_capabilities() -> dict:
             "api_key_set": bool(openai_api_key),
             "api_key_required": openai_key_required,
             "ready": openai_ready,
+        },
+        "windows_sapi": {
+            "ready": windows_sapi_ready,
         },
     }
 
@@ -153,6 +157,10 @@ def _render_voice_wav(text: str, output_path: Path) -> str:
     openai_engine = _render_with_openai_compatible(text, output_path, required=False)
     if openai_engine:
         return openai_engine
+
+    windows_engine = _render_with_windows_sapi(text, output_path, required=False)
+    if windows_engine:
+        return windows_engine
 
     _write_tone_wav(
         output_path=output_path,
@@ -311,6 +319,45 @@ def _render_with_openai_compatible(text: str, output_path: Path, required: bool)
     return "openai-compatible"
 
 
+def _render_with_windows_sapi(text: str, output_path: Path, required: bool) -> str | None:
+    powershell_bin = _powershell_binary()
+    if not powershell_bin:
+        if required:
+            raise VoiceEngineError(engine="windows-sapi", message="powershell is not available")
+        return None
+
+    windows_output_path = _to_windows_path(output_path)
+    if not windows_output_path:
+        if required:
+            raise VoiceEngineError(engine="windows-sapi", message="could not map output path for powershell")
+        return None
+
+    escaped_path = windows_output_path.replace("'", "''")
+    escaped_text = text.replace("\r", " ").replace("\n", " ").replace("'", "''")
+    script = (
+        "Add-Type -AssemblyName System.Speech; "
+        "$synth = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
+        f"$synth.SetOutputToWaveFile('{escaped_path}'); "
+        f"$synth.Speak('{escaped_text}'); "
+        "$synth.Dispose();"
+    )
+    command = [powershell_bin, "-NoProfile", "-Command", script]
+    try:
+        completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    except OSError as exc:
+        if required:
+            raise VoiceEngineError(engine="windows-sapi", message=f"windows sapi synthesis failed: {exc}") from exc
+        return None
+
+    if completed.returncode == 0 and output_path.exists():
+        return "windows-sapi"
+
+    if required:
+        stderr = completed.stderr.strip() if completed.stderr else "unknown error"
+        raise VoiceEngineError(engine="windows-sapi", message=f"windows sapi synthesis failed: {stderr}")
+    return None
+
+
 def _piper_binary() -> str | None:
     configured = os.getenv(PIPER_BIN_ENV, "").strip()
     if configured:
@@ -323,6 +370,27 @@ def _espeak_binary() -> str | None:
     if configured:
         return shutil.which(configured) or configured
     return shutil.which("espeak") or shutil.which("espeak-ng")
+
+
+def _powershell_binary() -> str | None:
+    return shutil.which("powershell.exe") or shutil.which("powershell")
+
+
+def _to_windows_path(path: Path) -> str | None:
+    raw = str(path)
+    if os.name == "nt":
+        return raw
+    wslpath_bin = shutil.which("wslpath")
+    if not wslpath_bin:
+        return None
+    try:
+        completed = subprocess.run([wslpath_bin, "-w", raw], capture_output=True, text=True, check=False)
+    except OSError:
+        return None
+    if completed.returncode != 0:
+        return None
+    mapped = completed.stdout.strip()
+    return mapped or None
 
 
 def _write_tone_wav(output_path: Path, duration_ms: int, sample_rate: int) -> None:

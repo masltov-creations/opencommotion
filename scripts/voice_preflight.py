@@ -33,6 +33,7 @@ def main() -> int:
         tts["piper"]["ready"]
         or tts["espeak"]["ready"]
         or tts.get("openai_compatible", {}).get("ready")
+        or tts.get("windows_sapi", {}).get("ready")
     )
     if stt_ready and tts_ready:
         return 0

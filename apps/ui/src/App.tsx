@@ -151,6 +151,7 @@ export default function App() {
   const [selectedRunId, setSelectedRunId] = useState('')
   const [queuedPrompt, setQueuedPrompt] = useState('autonomous turn: continue narrative and visuals')
   const [runActionLoading, setRunActionLoading] = useState(false)
+  const [browserSpeaking, setBrowserSpeaking] = useState(false)
 
   const session = useMemo(() => `sess-${Math.random().toString(36).slice(2)}`, [])
   const authHeaders = useMemo(() => {
@@ -168,6 +169,36 @@ export default function App() {
     const value = raw.trim().toLowerCase()
     return value === '1' || value === 'true' || value === 'yes'
   }, [])
+  const browserSpeechSupported = useMemo(
+    () => typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window,
+    [],
+  )
+
+  function speakInBrowser(textToSpeak: string): void {
+    if (!browserSpeechSupported) {
+      setLastError('Browser speech is not available in this browser. Configure a TTS engine in setup mode.')
+      return
+    }
+    const cleanText = textToSpeak.trim()
+    if (!cleanText) {
+      return
+    }
+    try {
+      window.speechSynthesis.cancel()
+      const utterance = new SpeechSynthesisUtterance(cleanText)
+      utterance.onend = () => setBrowserSpeaking(false)
+      utterance.onerror = () => {
+        setBrowserSpeaking(false)
+        setLastError('Browser speech failed. Try a different browser voice or configure backend TTS.')
+      }
+      setBrowserSpeaking(true)
+      window.speechSynthesis.speak(utterance)
+    } catch (err) {
+      setBrowserSpeaking(false)
+      const msg = formatClientError(err, 'browser speech', 'Browser speech failed')
+      setLastError(msg)
+    }
+  }
 
   const refreshRuntimeCapabilities = useCallback(async () => {
     if (isTestMode) {
@@ -377,6 +408,9 @@ export default function App() {
     setDurationMs(totalDuration)
     setPlaybackMs(0)
     setPlaying(true)
+    if (turn.voice?.engine === 'tone-fallback') {
+      speakInBrowser(turn.text || '')
+    }
   }
 
   function formatClientError(err: unknown, op: string, fallback: string): string {
@@ -646,6 +680,14 @@ export default function App() {
   }, [session, authHeaders, refreshRuns])
 
   useEffect(() => {
+    return () => {
+      if (browserSpeechSupported) {
+        window.speechSynthesis.cancel()
+      }
+    }
+  }, [browserSpeechSupported])
+
+  useEffect(() => {
     if (isTestMode) {
       return
     }
@@ -678,6 +720,7 @@ export default function App() {
   const lineChart = scene.charts.adoption_curve
   const pieChart = scene.charts.saturation_pie
   const audioUri = voice?.segments?.[0]?.audio_uri
+  const toneFallback = voice?.engine === 'tone-fallback'
   const llmProvider = runtimeCaps?.llm?.selected_provider || 'unknown'
   const llmEffectiveProvider = runtimeCaps?.llm?.effective_provider || llmProvider
   const llmReady = runtimeCaps?.llm?.effective_ready === true
@@ -919,7 +962,18 @@ export default function App() {
         <section className="card">
           <h2>Voice Agent</h2>
           <p>{describeVoice(voice)}</p>
-          {audioUri ? <audio controls src={`${gateway}${audioUri}`} /> : <p className="muted">No audio yet.</p>}
+          {toneFallback ? (
+            <div>
+              <p className="muted">Backend TTS is in tone fallback. Using browser speech instead.</p>
+              <button onClick={() => speakInBrowser(text)} disabled={!text || browserSpeaking}>
+                {browserSpeaking ? 'Speaking...' : 'Speak In Browser'}
+              </button>
+            </div>
+          ) : audioUri ? (
+            <audio controls src={`${gateway}${audioUri}`} />
+          ) : (
+            <p className="muted">No audio yet.</p>
+          )}
         </section>
 
         <section className="card">
