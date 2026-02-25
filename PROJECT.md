@@ -45,6 +45,7 @@ Progress checklist:
 - [x] End-to-end voice + visual turn path (with configurable engine policy)
 - [x] Configurable LLM provider path (`heuristic`/`ollama`/`openai-compatible`) with runtime capabilities API
 - [x] Guided setup wizard for LLM/STT/TTS configuration (`make setup-wizard`)
+- [x] Install-and-run path without local UI build (`scripts/install_local.sh` + `make run`)
 - [x] Schema validation enforcement in runtime services
 - [x] UI realtime patch playback
 - [x] Artifact memory lifecycle + hybrid recall
@@ -97,3 +98,4 @@ Change log:
 - 2026-02-24: Added strict voice engine policy and preflight visibility.
 - 2026-02-24: Added schema validator migration away from deprecated resolver path.
 - 2026-02-24: Added guided setup wizard and runtime capability visibility for user-selected LLM/STT/TTS stacks.
+- 2026-02-24: Added runtime distribution mode that serves prebuilt UI from gateway for install-and-run UX.

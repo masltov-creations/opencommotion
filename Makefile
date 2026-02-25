@@ -1,7 +1,13 @@
-.PHONY: dev down setup-wizard test test-ui test-all test-e2e security-checks perf-checks test-complete lint fresh-agent-e2e voice-preflight
+.PHONY: install run dev down setup-wizard test test-ui test-all test-e2e security-checks perf-checks test-complete lint fresh-agent-e2e voice-preflight
+
+install:
+	bash scripts/install_local.sh
+
+run:
+	bash scripts/dev_up.sh --ui-mode dist
 
 dev:
-	bash scripts/dev_up.sh
+	bash scripts/dev_up.sh --ui-mode dev
 
 down:
 	bash scripts/dev_down.sh

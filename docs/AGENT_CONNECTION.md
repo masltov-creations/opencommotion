@@ -12,22 +12,18 @@ Use this exact flow if you have never run the repo before:
 
 ```bash
 cd /mnt/d/Dev/OpenCommotion
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
-npm install
-cp .env.example .env
-make setup-wizard
-make dev
+python3 scripts/opencommotion.py install
+python3 scripts/opencommotion.py setup
+python3 scripts/opencommotion.py run
 curl -sS http://127.0.0.1:8000/health
 curl -sS http://127.0.0.1:8001/health
 python scripts/agent_examples/robust_turn_client.py --session first-run --prompt "quick agent bootstrap check" --no-save
-make down
+python3 scripts/opencommotion.py down
 ```
 
 Notes:
 - Keep all Python calls on the project environment: `source .venv/bin/activate` or use `.venv/bin/python`.
-- If `make dev` is running in one terminal, run client commands from a second terminal.
+- If `opencommotion.py run` is running in one terminal, run client commands from a second terminal.
 - For a full fresh-consumer proof in one command, run `make fresh-agent-e2e`.
 
 ## 1) Start the stack
@@ -35,15 +31,18 @@ Notes:
 ```bash
 cd /mnt/d/Dev/OpenCommotion
 cp .env.example .env
-make dev
+python3 scripts/opencommotion.py run
 ```
 
 Default endpoints:
 - Gateway: `http://127.0.0.1:8000`
 - Orchestrator: `http://127.0.0.1:8001`
-- UI: `http://127.0.0.1:5173`
+- UI: `http://127.0.0.1:8000`
 - Event stream (WebSocket): `ws://127.0.0.1:8000/v1/events/ws`
 - Runtime capabilities (LLM + voice): `http://127.0.0.1:8000/v1/runtime/capabilities`
+
+Contributor note:
+- For hot-reload UI development, run `python3 scripts/opencommotion.py dev` and use `http://127.0.0.1:5173`.
 
 ## 2) Health checks
 
@@ -221,7 +220,7 @@ Use this when Codex is acting as an execution agent against OpenCommotion:
 1. Start stack:
 
 ```bash
-make dev
+python3 scripts/opencommotion.py run
 ```
 
 2. Run the robust example agent client:
@@ -412,10 +411,10 @@ Handoff report template:
 
 ## 16) Troubleshooting for first-time agents
 
-- Health endpoint fails after `make dev`:
+- Health endpoint fails after `opencommotion.py run`:
   - check `runtime/logs/gateway.log`
   - check `runtime/logs/orchestrator.log`
-  - rerun `make down && make dev`
+  - rerun `python3 scripts/opencommotion.py down && python3 scripts/opencommotion.py run`
 - Browser E2E fails with missing system libs (example: `libnspr4.so`):
   - run `bash scripts/ensure_playwright_libs.sh`
   - rerun `make test-e2e`

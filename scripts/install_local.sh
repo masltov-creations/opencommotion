@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "python3 is required" >&2
+  exit 1
+fi
+
+if [[ ! -x .venv/bin/python ]]; then
+  python3 -m venv .venv
+fi
+
+source .venv/bin/activate
+python -m pip install --upgrade pip >/dev/null
+pip install -r requirements.txt >/dev/null
+
+if [[ ! -f .env ]]; then
+  cp .env.example .env
+  echo "Created .env from .env.example"
+fi
+
+echo "Install complete."
+echo "Next steps:"
+echo "  1) make setup-wizard"
+echo "  2) make run"
+echo "  3) open http://127.0.0.1:8000"

@@ -1,6 +1,7 @@
 # OpenCommotion
 
 OpenCommotion is a local-first visual orchestration app: one prompt in, synchronized text + voice + visual patches out.
+And now for something completely practical.
 
 ## Use It In Practice
 
@@ -8,33 +9,30 @@ OpenCommotion is a local-first visual orchestration app: one prompt in, synchron
 
 Prereqs:
 - Python 3.11+
-- Node.js 20+
-- npm
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-npm install
-cp .env.example .env
-make setup-wizard
+python3 scripts/opencommotion.py install
+python3 scripts/opencommotion.py setup
 ```
 
 The wizard configures your LLM/STT/TTS stack in `.env`.
+No shrubbery required.
 
 ### 2) Start and open the app
 
 ```bash
-make dev
+python3 scripts/opencommotion.py run
 ```
 
 Open:
-- UI: `http://127.0.0.1:5173`
+- UI: `http://127.0.0.1:8000`
 - Gateway docs: `http://127.0.0.1:8000/docs`
 - Orchestrator docs: `http://127.0.0.1:8001/docs`
 
 In the UI, check **Setup Status**. It shows runtime readiness from:
 - `GET /v1/runtime/capabilities`
+
+For contributor mode with hot-reload UI, install Node.js 20+ and use `python3 scripts/opencommotion.py dev` (UI at `http://127.0.0.1:5173`).
 
 ### 3) Run a turn
 
@@ -48,6 +46,7 @@ Expected:
 - text response
 - voice segment with `audio_uri`
 - visual patches applied and animated timeline
+- no dead parrots in the response path
 
 ### 4) Use as an agent/client
 
@@ -73,7 +72,7 @@ python scripts/agent_examples/rest_ws_agent_client.py \
 ### 5) Stop
 
 ```bash
-make down
+python3 scripts/opencommotion.py down
 ```
 
 ## Smart Defaults (Open Source)
@@ -91,7 +90,7 @@ Useful alternatives:
 Preflight checks:
 
 ```bash
-make voice-preflight
+python3 scripts/opencommotion.py preflight
 curl -sS http://127.0.0.1:8000/v1/runtime/capabilities
 ```
 
@@ -112,13 +111,15 @@ curl -sS http://127.0.0.1:8000/v1/runtime/capabilities
 Fast smoke:
 
 ```bash
-make dev
+python3 scripts/opencommotion.py run
 source .venv/bin/activate
 curl -sS http://127.0.0.1:8000/health
 curl -sS http://127.0.0.1:8001/health
 python scripts/agent_examples/robust_turn_client.py --session smoke --prompt "quick onboarding verification turn"
-make down
+python3 scripts/opencommotion.py down
 ```
+
+If a health check fails, it is not just a flesh wound. Check `runtime/logs/` and rerun.
 
 Full gates:
 
@@ -130,6 +131,7 @@ make fresh-agent-e2e
 ## Customize And Extend
 
 If you want to tailor providers, policies, or internal behavior, start here.
+You are now entering the Ministry of Silly Configs (but with sane defaults).
 
 ### LLM provider config
 
@@ -164,6 +166,18 @@ python3 scripts/init_wave_context.py --run-id main-wave-01
 ```
 
 Artifacts are written under `runtime/agent-runs/`.
+
+### Contributor/dev mode
+
+If you are changing UI/runtime code and want hot reload:
+1. Install Node.js 20+ and npm.
+2. Run `npm install`.
+3. Run `python3 scripts/opencommotion.py dev`.
+4. Open `http://127.0.0.1:5173`.
+
+### Makefile (optional)
+
+If you have `make` installed, all commands above are also available as make targets (`make install`, `make run`, etc.).
 
 ## Docs
 

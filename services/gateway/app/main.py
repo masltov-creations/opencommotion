@@ -24,6 +24,9 @@ ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "http://127.0.0.1:8001")
 VOICE_AUDIO_ROOT = Path(
     os.getenv("OPENCOMMOTION_AUDIO_ROOT", str(PROJECT_ROOT / "data" / "audio"))
 )
+UI_DIST_ROOT = Path(
+    os.getenv("OPENCOMMOTION_UI_DIST_ROOT", str(PROJECT_ROOT / "apps" / "ui" / "dist"))
+)
 VOICE_AUDIO_ROOT.mkdir(parents=True, exist_ok=True)
 
 protocol_validator = ProtocolValidator()
@@ -369,3 +372,7 @@ async def orchestrate(req: OrchestrateRequest) -> dict:
     }
     await ws_manager.broadcast(event)
     return event
+
+
+if (UI_DIST_ROOT / "index.html").exists():
+    app.mount("/", StaticFiles(directory=str(UI_DIST_ROOT), html=True), name="opencommotion-ui")

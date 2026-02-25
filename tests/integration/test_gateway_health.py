@@ -8,3 +8,10 @@ def test_gateway_health() -> None:
     res = c.get('/health')
     assert res.status_code == 200
     assert res.json()['service'] == 'gateway'
+
+
+def test_gateway_serves_ui_index_when_dist_available() -> None:
+    c = TestClient(app)
+    res = c.get("/")
+    assert res.status_code == 200
+    assert "text/html" in res.headers.get("content-type", "")

@@ -121,7 +121,7 @@ When using `brush/compile`:
 
 ## 10) Consumer and agent onboarding checklist
 
-- Stack starts with `make dev`.
+- Stack starts with `python3 scripts/opencommotion.py run` (or `python3 scripts/opencommotion.py dev` for contributor hot reload).
 - Health checks pass.
 - Run one typed turn and verify render output.
 - Run one voice synth call and verify audio URI playback.
@@ -134,10 +134,10 @@ When using `brush/compile`:
 ## 11) Minimal run commands
 
 ```bash
-make dev
+python3 scripts/opencommotion.py run
 . .venv/bin/activate
 python scripts/agent_examples/robust_turn_client.py --session demo-1 --prompt "moonwalk adoption chart"
-make down
+python3 scripts/opencommotion.py down
 ```
 
 ## 12) Multi-agent execution mode (implementation waves)
