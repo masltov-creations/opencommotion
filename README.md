@@ -113,6 +113,20 @@ cd ~/apps/opencommotion
 bash scripts/setup.sh
 ```
 
+If you see `vite: Permission denied` during setup/run in WSL, update and retry first:
+
+```bash
+git pull --ff-only origin main
+bash scripts/setup.sh
+```
+
+If it still fails on an older checkout:
+
+```bash
+chmod +x node_modules/.bin/vite apps/ui/node_modules/.bin/vite 2>/dev/null || true
+opencommotion -run
+```
+
 ## First 2 Minutes In The App
 
 1. Open setup mode: http://127.0.0.1:8000/?setup=1

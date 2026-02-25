@@ -146,10 +146,40 @@ def _ensure_ui_dist_current() -> int:
     print("Building UI assets...")
     code = _run(["npm", "run", "ui:build"])
     if code != 0:
+        print("npm ui:build failed. Retrying via node + vite.js (permission-safe path)...")
+        code = _run_ui_build_via_node()
+    if code != 0:
+        print(
+            "UI build failed. If you saw 'vite: Permission denied', run: "
+            "chmod +x node_modules/.bin/vite apps/ui/node_modules/.bin/vite 2>/dev/null || true"
+        )
         return code
     UI_BUILD_MARKER.parent.mkdir(parents=True, exist_ok=True)
     UI_BUILD_MARKER.write_text(source_hash + "\n", encoding="utf-8")
     return 0
+
+
+def _run_ui_build_via_node() -> int:
+    node_bin = shutil.which("node")
+    if node_bin is None:
+        return 127
+
+    candidates = [
+        ROOT / "node_modules" / "vite" / "bin" / "vite.js",
+        ROOT / "apps" / "ui" / "node_modules" / "vite" / "bin" / "vite.js",
+    ]
+    for vite_entry in candidates:
+        if not vite_entry.exists():
+            continue
+        completed = subprocess.run(
+            [node_bin, str(vite_entry), "build"],
+            cwd=str(ROOT / "apps" / "ui"),
+            check=False,
+            env=_env_with_pythonpath(),
+        )
+        if completed.returncode == 0:
+            return 0
+    return 127
 
 
 def _stack_running() -> bool:
