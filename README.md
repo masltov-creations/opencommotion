@@ -34,8 +34,10 @@ PowerShell (via WSL):
 wsl bash -lc 'mkdir -p ~/apps && ( [ -d ~/apps/opencommotion/.git ] && git -C ~/apps/opencommotion pull --ff-only origin main || git clone https://github.com/masltov-creations/opencommotion ~/apps/opencommotion ) && cd ~/apps/opencommotion && bash scripts/setup.sh'
 ```
 
-That command installs dependencies, starts the app, then offers to open your browser (default: yes).
-Run it from an interactive terminal so the browser prompt can appear.
+That command installs dependencies, starts the app, then opens the browser (or prompts first in interactive shells).
+If browser auto-open is blocked by your environment, open manually:
+- http://127.0.0.1:8000
+- PowerShell: `Start-Process http://127.0.0.1:8000`
 To avoid `Permission denied`, run setup via `bash scripts/setup.sh` (as shown above), not `./scripts/setup.sh`.
 
 Manual start (if needed):

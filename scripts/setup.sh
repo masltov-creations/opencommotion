@@ -37,21 +37,20 @@ done
 
 open_browser() {
   local url="$1"
+  if command -v wslview >/dev/null 2>&1; then
+    wslview "$url" >/dev/null 2>&1 && return 0
+  fi
   if command -v xdg-open >/dev/null 2>&1; then
-    xdg-open "$url" >/dev/null 2>&1 &
-    return 0
+    xdg-open "$url" >/dev/null 2>&1 && return 0
   fi
   if command -v open >/dev/null 2>&1; then
-    open "$url" >/dev/null 2>&1 &
-    return 0
+    open "$url" >/dev/null 2>&1 && return 0
   fi
   if command -v powershell.exe >/dev/null 2>&1; then
-    powershell.exe -NoProfile -Command "Start-Process '$url'" >/dev/null 2>&1 &
-    return 0
+    powershell.exe -NoProfile -Command "Start-Process \"$url\"" >/dev/null 2>&1 && return 0
   fi
   if command -v cmd.exe >/dev/null 2>&1; then
-    cmd.exe /c start "" "$url" >/dev/null 2>&1 &
-    return 0
+    cmd.exe /c start "" "$url" >/dev/null 2>&1 && return 0
   fi
   return 1
 }
@@ -75,21 +74,25 @@ fi
 if [[ "$AUTO_RUN" -eq 1 ]]; then
   python3 scripts/opencommotion.py run
   echo "Configure providers in the app: Settings & Setup."
-  if [[ "$AUTO_OPEN" -eq 1 && -t 0 ]]; then
-    read -r -p "Open browser now? [Y/n]: " open_reply
-    open_reply="${open_reply:-Y}"
-    case "${open_reply,,}" in
-      y|yes)
-        if open_browser "$APP_URL"; then
-          echo "Opened browser: $APP_URL"
-        else
-          echo "Could not auto-open browser. Open manually: $APP_URL"
-        fi
-        ;;
-      *)
-        echo "Open manually: $APP_URL"
-        ;;
-    esac
+  if [[ "$AUTO_OPEN" -eq 1 ]]; then
+    should_open="yes"
+    if [[ -t 0 ]]; then
+      read -r -p "Open browser now? [Y/n]: " open_reply
+      open_reply="${open_reply:-Y}"
+      case "${open_reply,,}" in
+        y|yes) should_open="yes" ;;
+        *) should_open="no" ;;
+      esac
+    fi
+    if [[ "$should_open" == "yes" ]]; then
+      if open_browser "$APP_URL"; then
+        echo "Opened browser: $APP_URL"
+      else
+        echo "Could not auto-open browser. Open manually: $APP_URL"
+      fi
+    else
+      echo "Open manually: $APP_URL"
+    fi
   else
     echo "Setup complete. Open: $APP_URL"
   fi
