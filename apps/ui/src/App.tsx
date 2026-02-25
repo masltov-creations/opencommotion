@@ -386,7 +386,7 @@ export default function App() {
         if (/failed to fetch|networkerror|load failed/i.test(message)) {
           return (
             `${op} failed: could not reach ${gateway}. ` +
-            `Check service status with scripts/opencommotion.py -status, then open ${gateway}/health.`
+            `Check service status with opencommotion -status, then open ${gateway}/health.`
           )
         }
         if (/aborted|timeout/i.test(message)) {
@@ -396,6 +396,16 @@ export default function App() {
       }
     }
     return fallback
+  }
+
+  async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      return await fetch(input, { ...init, signal: controller.signal })
+    } finally {
+      window.clearTimeout(timer)
+    }
   }
 
   async function buildApiErrorMessage(res: Response, op: string): Promise<string> {
@@ -451,11 +461,11 @@ export default function App() {
     setRunning(true)
     setLastError('')
     try {
-      const res = await fetch(`${gateway}/v1/orchestrate`, {
+      const res = await fetchWithTimeout(`${gateway}/v1/orchestrate`, {
         method: 'POST',
         headers: { ...authHeaders, 'content-type': 'application/json' },
         body: JSON.stringify({ session_id: session, prompt }),
-      })
+      }, 45000)
       if (!res.ok) {
         throw new Error(await buildApiErrorMessage(res, 'orchestrate'))
       }

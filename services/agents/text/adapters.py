@@ -102,11 +102,11 @@ def _timeout_s(value: str, default: float) -> float:
 
 
 def _cli_retries() -> int:
-    raw = os.getenv(CLI_RETRIES_ENV, "2").strip()
+    raw = os.getenv(CLI_RETRIES_ENV, "1").strip()
     try:
         parsed = int(raw)
     except ValueError:
-        return 2
+        return 1
     return min(max(parsed, 1), 5)
 
 
@@ -121,6 +121,11 @@ def _run_cli(command: list[str], timeout_s: float, retries: int, provider: str) 
                 timeout=timeout_s,
                 check=False,
             )
+        except subprocess.TimeoutExpired as exc:
+            raise AdapterError(
+                provider=provider,
+                message=f"{provider} timed out after {timeout_s:.1f}s",
+            ) from exc
         except Exception as exc:  # noqa: BLE001
             last_exc = exc
             if attempt >= retries:
