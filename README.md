@@ -96,6 +96,66 @@ python3 scripts/agent_examples/rest_ws_agent_client.py \
   --prompt "ufo landing with pie chart"
 ```
 
+## Codex CLI End-to-End (Step by Step)
+
+1. Start OpenCommotion:
+
+```bash
+python3 scripts/opencommotion.py run
+```
+
+2. Verify Codex CLI is available to this shell:
+
+```bash
+python3 scripts/opencommotion.py doctor
+codex --version
+```
+
+3. Configure Codex provider in the app:
+   - Open http://127.0.0.1:8000
+   - Setup Wizard -> provider: `codex-cli`
+   - Binary: `codex` (or absolute path)
+   - Optional model: set if you want non-default behavior
+   - Click **Validate Setup** and **Save Setup**
+
+4. Run a turn in the UI:
+   - Enter a prompt
+   - Click **Run Turn**
+   - Confirm text + voice + animation are produced
+
+5. Run the same flow from Python client:
+
+```bash
+. .venv/bin/activate
+python3 scripts/agent_examples/codex_cli_turn_client.py \
+  --session codex-e2e \
+  --prompt "show an adoption chart with synchronized narration"
+```
+
+6. Optional: run Codex through autonomous queue controls:
+
+```bash
+curl -sS -X POST http://127.0.0.1:8000/v1/agent-runs \
+  -H "x-api-key: dev-opencommotion-key" \
+  -H "content-type: application/json" \
+  -d '{"label":"codex-run","auto_run":true}'
+```
+
+Then enqueue prompts from the UI (**Agent Run Manager**) or API:
+
+```bash
+curl -sS -X POST http://127.0.0.1:8000/v1/agent-runs/<run_id>/enqueue \
+  -H "x-api-key: dev-opencommotion-key" \
+  -H "content-type: application/json" \
+  -d '{"prompt":"animate moonwalk progression with narration"}'
+```
+
+7. Stop services when done:
+
+```bash
+python3 scripts/opencommotion.py down
+```
+
 ## Defaults You Should Know
 
 Auth defaults:
