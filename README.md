@@ -20,11 +20,15 @@ Prereqs:
 - Node.js 20+
 - npm
 
-Install, configure, and run:
+One-line bootstrap (clone/update + setup):
 
 ```bash
-python3 scripts/opencommotion.py install
-python3 scripts/opencommotion.py setup
+mkdir -p /home/$USER/apps && ( [ -d /home/$USER/apps/opencommotion/.git ] && git -C /home/$USER/apps/opencommotion pull --ff-only origin main || git clone https://github.com/masltov-creations/opencommotion /home/$USER/apps/opencommotion ) && cd /home/$USER/apps/opencommotion && ./scripts/setup.sh
+```
+
+Then run:
+
+```bash
 python3 scripts/opencommotion.py run
 ```
 
@@ -98,32 +102,44 @@ python3 scripts/agent_examples/rest_ws_agent_client.py \
 
 ## Codex CLI End-to-End (Step by Step)
 
-1. Start OpenCommotion:
+1. Bootstrap repo and dependencies:
 
 ```bash
-python3 scripts/opencommotion.py run
+mkdir -p /home/$USER/apps && ( [ -d /home/$USER/apps/opencommotion/.git ] && git -C /home/$USER/apps/opencommotion pull --ff-only origin main || git clone https://github.com/masltov-creations/opencommotion /home/$USER/apps/opencommotion ) && cd /home/$USER/apps/opencommotion && ./scripts/setup.sh
 ```
 
-2. Verify Codex CLI is available to this shell:
+2. Authenticate Codex CLI once:
+
+```bash
+codex login
+```
+
+3. Verify Codex CLI is available to this shell:
 
 ```bash
 python3 scripts/opencommotion.py doctor
 codex --version
 ```
 
-3. Configure Codex provider in the app:
+4. Start OpenCommotion:
+
+```bash
+python3 scripts/opencommotion.py run
+```
+
+5. Configure Codex provider in the app:
    - Open http://127.0.0.1:8000
    - Setup Wizard -> provider: `codex-cli`
    - Binary: `codex` (or absolute path)
    - Optional model: set if you want non-default behavior
    - Click **Validate Setup** and **Save Setup**
 
-4. Run a turn in the UI:
+6. Run a turn in the UI:
    - Enter a prompt
    - Click **Run Turn**
    - Confirm text + voice + animation are produced
 
-5. Run the same flow from Python client:
+7. Run the same flow from Python client:
 
 ```bash
 . .venv/bin/activate
@@ -132,7 +148,7 @@ python3 scripts/agent_examples/codex_cli_turn_client.py \
   --prompt "show an adoption chart with synchronized narration"
 ```
 
-6. Optional: run Codex through autonomous queue controls:
+8. Optional: run Codex through autonomous queue controls:
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8000/v1/agent-runs \
@@ -150,7 +166,7 @@ curl -sS -X POST http://127.0.0.1:8000/v1/agent-runs/<run_id>/enqueue \
   -d '{"prompt":"animate moonwalk progression with narration"}'
 ```
 
-7. Stop services when done:
+9. Stop services when done:
 
 ```bash
 python3 scripts/opencommotion.py down
