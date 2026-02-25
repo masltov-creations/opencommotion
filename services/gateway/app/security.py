@@ -13,6 +13,9 @@ ALLOWED_IPS_ENV = "OPENCOMMOTION_ALLOWED_IPS"
 
 EXEMPT_PATH_EXACT = {
     "/",
+    "/index.html",
+    "/favicon.ico",
+    "/robots.txt",
     "/health",
     "/docs",
     "/openapi.json",
@@ -20,6 +23,9 @@ EXEMPT_PATH_EXACT = {
     "/metrics",
     "/v1/runtime/capabilities",
     "/v1/voice/capabilities",
+}
+EXEMPT_PATH_PREFIXES = {
+    "/assets/",
 }
 
 
@@ -52,6 +58,9 @@ def get_security_state() -> SecurityState:
 def path_is_exempt(path: str) -> bool:
     if path in EXEMPT_PATH_EXACT:
         return True
+    for prefix in EXEMPT_PATH_PREFIXES:
+        if path.startswith(prefix):
+            return True
     if path.startswith("/v1/audio/"):
         return True
     if path.startswith("/v1/setup/"):
