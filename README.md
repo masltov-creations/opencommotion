@@ -40,7 +40,7 @@ wsl bash -lc 'mkdir -p ~/apps && ( [ -d ~/apps/opencommotion/.git ] && git -C ~/
 ```
 
 Important shell rule:
-- If your prompt looks like `mashuri@...$`, you are already in WSL. Run Linux commands directly and do not prefix with `wsl`.
+- If your prompt looks like `<username>@...$`, you are already in WSL. Run Linux commands directly and do not prefix with `wsl`.
 - Only use `wsl bash -lc '...'` from Windows PowerShell/CMD.
 
 That command installs dependencies, starts the app, and opens the browser (or asks first in interactive shells).
