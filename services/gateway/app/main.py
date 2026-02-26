@@ -39,6 +39,7 @@ from services.gateway.app.metrics import (
 )
 from services.gateway.app.security import enforce_http_auth, get_security_state, websocket_authorized
 from services.protocol import ProtocolValidationError, ProtocolValidator
+from services.versioning import project_version
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "http://127.0.0.1:8001")
@@ -254,7 +255,7 @@ def _validate_orchestrator_payload(result: dict) -> None:
     _validate_many(visual_strokes, BRUSH_STROKE_SCHEMA, context_prefix="orchestrator.visual_strokes")
 
 
-app = FastAPI(title="OpenCommotion Gateway", version="0.6.0")
+app = FastAPI(title="OpenCommotion Gateway", version=project_version())
 app.mount("/v1/audio", StaticFiles(directory=str(VOICE_AUDIO_ROOT)), name="opencommotion-audio")
 
 app.add_middleware(

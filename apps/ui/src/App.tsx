@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { buildScene, type Patch, type SceneActor } from './runtime/sceneRuntime'
 
 declare const __OPENCOMMOTION_UI_VERSION__: string
+declare const __OPENCOMMOTION_UI_REVISION__: string
 
 type VoiceSegment = {
   text: string
@@ -103,6 +104,7 @@ const gatewayApiKey =
   (import.meta as { env?: Record<string, string> }).env?.VITE_GATEWAY_API_KEY || 'dev-opencommotion-key'
 const isTestMode = (import.meta as { env?: Record<string, string> }).env?.MODE === 'test'
 const uiVersion = __OPENCOMMOTION_UI_VERSION__
+const uiRevision = __OPENCOMMOTION_UI_REVISION__
 
 function calcDurationMs(turn: TurnResult): number {
   const patchEnd = turn.visual_patches.reduce((max, patch) => {
@@ -949,6 +951,7 @@ export default function App() {
             <span className="badge">STT: {sttEngine}</span>
             <span className="badge">TTS: {ttsEngine}</span>
             <span className="badge">UI: v{uiVersion}</span>
+            <span className="badge">rev {uiRevision}</span>
           </div>
           <button className="tools-toggle" onClick={() => setToolsOpen((current) => !current)}>
             {toolsOpen ? 'Close Tools' : 'Tools'}

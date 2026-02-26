@@ -15,6 +15,7 @@ from services.agents.voice.errors import VoiceEngineError
 from services.agents.visual.worker import generate_visual_strokes
 from services.agents.voice.tts.worker import synthesize_segments
 from services.protocol import ProtocolValidationError, ProtocolValidator
+from services.versioning import project_version
 
 protocol_validator = ProtocolValidator()
 BRUSH_STROKE_SCHEMA = "types/brush_stroke_v1.schema.json"
@@ -45,7 +46,7 @@ class RuntimeConfigApplyRequest(BaseModel):
     values: dict[str, str] = Field(default_factory=dict)
 
 
-app = FastAPI(title="OpenCommotion Orchestrator", version="0.5.0")
+app = FastAPI(title="OpenCommotion Orchestrator", version=project_version())
 
 
 @app.middleware("http")
