@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from services.agent_runtime.manager import AgentRunManager
+from services.agents.text.worker import LLMEngineError, rewrite_visual_prompt
 from services.agents.visual.quality import evaluate_market_growth_scene
 from services.agents.voice.errors import VoiceEngineError
 from services.agents.voice.stt.worker import stt_capabilities, transcribe_audio
@@ -61,6 +62,10 @@ AGENT_RUN_DB_PATH = Path(
 ORCHESTRATOR_REQUEST_TIMEOUT_S = float(os.getenv("OPENCOMMOTION_ORCHESTRATOR_TIMEOUT_S", "20"))
 ORCHESTRATOR_REQUEST_MAX_ATTEMPTS = max(1, int(os.getenv("OPENCOMMOTION_ORCHESTRATOR_MAX_ATTEMPTS", "3")))
 ORCHESTRATOR_RETRY_BASE_DELAY_S = max(0.05, float(os.getenv("OPENCOMMOTION_ORCHESTRATOR_RETRY_BASE_DELAY_S", "0.2")))
+AGENT_CONTEXT_REMINDER_SUFFIX = (
+    "System reminder: you are OpenCommotion's visual runtime agent. "
+    "You must return concrete visual scene updates (drawing/motion primitives), not text-only responses."
+)
 
 
 def _truthy(value: str | None) -> bool:
@@ -620,6 +625,120 @@ def _infer_explicit_rebuild(prompt: str, request_rebuild: bool) -> bool:
     return any(token in lowered for token in tokens)
 
 
+def _v2_has_visual_delta_ops(ops: list[dict[str, Any]]) -> bool:
+    for op in ops:
+        op_name = str(op.get("op", "")).strip()
+        if not op_name:
+            continue
+        if op_name in {"createEntity", "updateEntity", "destroyEntity"}:
+            entity_id = str(op.get("entity_id", "")).strip().lower()
+            kind = str(op.get("kind", "")).strip().lower()
+            if kind == "annotation" or "annotation" in entity_id:
+                continue
+            return True
+        return True
+    return False
+
+
+def _preview_prompt(raw: str, limit: int = 140) -> str:
+    text = " ".join(str(raw or "").strip().split())
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit].rstrip()}..."
+
+
+def _scene_context_brief(scene: dict[str, Any], scene_id: str, revision: int) -> str:
+    summary = scene_summary(scene)
+    entities = sorted(str(key) for key in scene.get("entities", {}).keys())[:8]
+    materials = sorted(str(key) for key in scene.get("materials", {}).keys())[:6]
+    behaviors = sorted(str(key) for key in scene.get("behaviors", {}).keys())[:6]
+    return (
+        f"scene_id={scene_id}; revision={revision}; "
+        f"entity_count={summary.get('entity_count', 0)}; "
+        f"material_count={summary.get('material_count', 0)}; "
+        f"behavior_count={summary.get('behavior_count', 0)}; "
+        f"entities={','.join(entities) if entities else 'none'}; "
+        f"materials={','.join(materials) if materials else 'none'}; "
+        f"behaviors={','.join(behaviors) if behaviors else 'none'}"
+    )
+
+
+def _capability_context(req: OrchestrateV2Request) -> str:
+    capabilities = req.capabilities if isinstance(req.capabilities, dict) else {}
+    renderer = str(capabilities.get("renderer", "")).strip() or "auto"
+    features = capabilities.get("features")
+    feature_tokens: list[str] = []
+    if isinstance(features, dict):
+        for key in sorted(features.keys()):
+            if len(feature_tokens) >= 8:
+                break
+            value = features.get(key)
+            if isinstance(value, bool):
+                feature_tokens.append(f"{key}={str(value).lower()}")
+    if not feature_tokens:
+        feature_tokens = ["features=default"]
+    return f"renderer={renderer}; " + "; ".join(feature_tokens)
+
+
+def _scene_context_expanded(scene: dict[str, Any], scene_id: str, revision: int) -> str:
+    lines: list[str] = [_scene_context_brief(scene, scene_id, revision), "entity_details:"]
+    entities = scene.get("entities", {})
+    for idx, key in enumerate(sorted(str(k) for k in entities.keys())):
+        if idx >= 20:
+            break
+        row = entities.get(key, {})
+        if not isinstance(row, dict):
+            continue
+        kind = str(row.get("kind", "unknown"))
+        lines.append(f"- {key} kind={kind}")
+    return "\n".join(lines)
+
+
+def _resolve_orchestration_prompt_v2(
+    *,
+    req: OrchestrateV2Request,
+    scene: dict[str, Any],
+    scene_id: str,
+    current_revision: int,
+) -> tuple[str, list[str]]:
+    prompt = str(req.prompt or "").strip()
+    warnings: list[str] = []
+    if not prompt:
+        return prompt, warnings
+
+    first_turn = current_revision <= 0
+    phase = "first-turn" if first_turn else "follow-up-turn"
+    context = (
+        f"invocation={phase}; "
+        + _capability_context(req)
+        + "; "
+        + _scene_context_brief(scene=scene, scene_id=scene_id, revision=current_revision)
+    )
+
+    try:
+        rewritten, meta = rewrite_visual_prompt(prompt=prompt, context=context, first_turn=first_turn)
+    except LLMEngineError as exc:
+        warnings.append(f"prompt_rewrite_error:{exc.provider}")
+        return prompt, warnings
+
+    warnings.extend(str(row) for row in list(meta.get("warnings", []))[:8])
+    if bool(meta.get("scene_request")):
+        warnings.append("agent_scene_request_honored")
+        expanded = _scene_context_expanded(scene=scene, scene_id=scene_id, revision=current_revision)
+        try:
+            rewritten_2, meta_2 = rewrite_visual_prompt(prompt=prompt, context=expanded, first_turn=first_turn)
+            warnings.extend(str(row) for row in list(meta_2.get("warnings", []))[:8])
+            if rewritten_2.strip():
+                rewritten = rewritten_2
+        except LLMEngineError as exc:
+            warnings.append(f"agent_scene_request_failed:{exc.provider}")
+
+    resolved = rewritten.strip() or prompt
+    if resolved != prompt:
+        warnings.append(f"prompt_rewrite_applied:{_preview_prompt(resolved, 120)}")
+    return resolved, warnings
+
+
 def _normalize_scene_id(scene_id: str | None, session_id: str) -> str:
     raw = str(scene_id or "").strip() or f"scene-{session_id}"
     compact = SCENE_ID_SAFE_RE.sub("-", raw).strip("-")
@@ -677,9 +796,16 @@ async def _execute_turn_v2(req: OrchestrateV2Request) -> dict[str, Any]:
             },
         )
 
+    resolved_prompt, rewrite_warnings = _resolve_orchestration_prompt_v2(
+        req=req,
+        scene=scene,
+        scene_id=scene_id,
+        current_revision=current_revision,
+    )
+
     turn = await _execute_turn(
         session_id=req.session_id,
-        prompt=req.prompt,
+        prompt=resolved_prompt,
         source="api-v2",
         broadcast_event=False,
     )
@@ -687,9 +813,32 @@ async def _execute_turn_v2(req: OrchestrateV2Request) -> dict[str, Any]:
     ops, translator_warnings = patches_to_v2_ops(
         legacy_patches,
         turn_id=str(turn.get("turn_id", str(uuid4()))),
-        prompt=req.prompt,
+        prompt=resolved_prompt,
         scene=scene,
     )
+    if not _v2_has_visual_delta_ops(ops):
+        translator_warnings.append("agent_context_reminder_applied:no_visual_scene_delta")
+        reminder_prompt = f"{resolved_prompt.strip()}\n\n{AGENT_CONTEXT_REMINDER_SUFFIX}"
+        reminded_turn = await _execute_turn(
+            session_id=req.session_id,
+            prompt=reminder_prompt,
+            source="api-v2-reminder",
+            broadcast_event=False,
+        )
+        reminder_patches = list(reminded_turn.get("visual_patches", []))
+        reminder_ops, reminder_warnings = patches_to_v2_ops(
+            reminder_patches,
+            turn_id=str(reminded_turn.get("turn_id", str(uuid4()))),
+            prompt=reminder_prompt,
+            scene=scene,
+        )
+        translator_warnings.extend(reminder_warnings)
+        if _v2_has_visual_delta_ops(reminder_ops):
+            turn = reminded_turn
+            legacy_patches = reminder_patches
+            ops = reminder_ops
+        else:
+            translator_warnings.append("agent_context_reminder_failed:no_visual_scene_delta")
     _validate_many(ops, SCENE_PATCH_OP_V2_SCHEMA, context_prefix="orchestrate.v2.patches")
     explicit_rebuild = _infer_explicit_rebuild(req.prompt, bool(req.intent.rebuild))
     try:
@@ -706,7 +855,7 @@ async def _execute_turn_v2(req: OrchestrateV2Request) -> dict[str, Any]:
         ) from exc
 
     scene_store_v2.autosave(scene_id)
-    warnings = [*translator_warnings, *apply_result.get("warnings", [])]
+    warnings = [*rewrite_warnings, *translator_warnings, *apply_result.get("warnings", [])]
     envelope: dict[str, Any] = {
         "version": "v2",
         "session_id": req.session_id,

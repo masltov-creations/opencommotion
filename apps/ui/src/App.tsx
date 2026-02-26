@@ -35,6 +35,7 @@ type TurnResult = {
   revision?: number
   timeline?: { duration_ms: number }
   quality_report?: QualityReport
+  warnings?: string[]
 }
 
 type ScenePatchOpV2 = {
@@ -57,6 +58,7 @@ type TurnResultV2 = {
   patches: ScenePatchOpV2[]
   legacy_visual_patches?: Patch[]
   quality_report?: QualityReport
+  warnings?: string[]
 }
 
 type ArtifactResult = {
@@ -122,6 +124,8 @@ type AgentLogEntry = {
   message: string
 }
 
+type TurnLifecycleState = 'idle' | 'running' | 'completed' | 'failed'
+
 function parsePositiveMs(rawValue: string | undefined, fallbackMs: number): number {
   const parsed = Number.parseInt((rawValue || '').trim(), 10)
   if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -157,17 +161,18 @@ function isTurnResultV2(payload: unknown): payload is TurnResultV2 {
 
 function normalizeTurnPayload(payload: unknown): TurnResult | null {
   if (isTurnResultV2(payload)) {
-    return {
-      session_id: payload.session_id,
-      scene_id: payload.scene_id,
-      revision: payload.revision,
-      turn_id: payload.turn_id,
-      text: payload.text || '',
-      voice: payload.voice || { voice: 'unknown', segments: [] },
-      visual_patches: payload.legacy_visual_patches || [],
-      timeline: payload.timeline,
-      quality_report: payload.quality_report,
-    }
+      return {
+        session_id: payload.session_id,
+        scene_id: payload.scene_id,
+        revision: payload.revision,
+        turn_id: payload.turn_id,
+        text: payload.text || '',
+        voice: payload.voice || { voice: 'unknown', segments: [] },
+        visual_patches: payload.legacy_visual_patches || [],
+        timeline: payload.timeline,
+        quality_report: payload.quality_report,
+        warnings: Array.isArray(payload.warnings) ? payload.warnings.map((row) => String(row)) : [],
+      }
   }
   if (payload && typeof payload === 'object') {
     const row = payload as Record<string, unknown>
@@ -293,7 +298,7 @@ function normalizeAgentThreadText(raw: string): string {
 }
 
 export default function App() {
-  const [prompt, setPrompt] = useState('show a moonwalk with adoption chart and pie')
+  const [prompt, setPrompt] = useState('draw 2 bouncing balls with different colors')
   const [text, setText] = useState('')
   const [patches, setPatches] = useState<Patch[]>([])
   const [query, setQuery] = useState('')
@@ -327,6 +332,11 @@ export default function App() {
   const [toolsOpen, setToolsOpen] = useState(false)
   const [agentLog, setAgentLog] = useState<AgentLogEntry[]>([])
   const [sceneRevision, setSceneRevision] = useState(0)
+  const [turnState, setTurnState] = useState<TurnLifecycleState>('idle')
+  const [turnStatusMessage, setTurnStatusMessage] = useState('Ready')
+  const [turnStartedAtMs, setTurnStartedAtMs] = useState<number | null>(null)
+  const [turnElapsedMs, setTurnElapsedMs] = useState(0)
+  const [activePromptPreview, setActivePromptPreview] = useState('')
 
   const session = useMemo(() => `sess-${Math.random().toString(36).slice(2)}`, [])
   const sceneId = useMemo(() => `scene-${session}`, [session])
@@ -626,6 +636,27 @@ export default function App() {
       'agent.turn.completed',
       `Turn ${turn.turn_id} completed. ${turn.visual_patches.length} patches. Agent said: ${previewText(normalizedText, 140)}`,
     )
+    const warnings = Array.isArray(turn.warnings) ? turn.warnings : []
+    const rewriteWarning = warnings.find((row) => row.startsWith('prompt_rewrite_applied:'))
+    if (rewriteWarning) {
+      appendAgentLog('agent.prompt.rewrite', rewriteWarning.replace('prompt_rewrite_applied:', ''))
+    }
+    if (warnings.some((row) => row === 'agent_scene_request_honored')) {
+      appendAgentLog('agent.scene.request', 'Agent requested current scene context and gateway provided it before rendering.')
+    }
+    const reminderWarning = warnings.find((row) => row.includes('agent_context_reminder'))
+    if (reminderWarning) {
+      appendAgentLog('agent.context.reminder', reminderWarning)
+      setTurnStatusMessage(
+        'Agent reminder was applied: backend requested concrete visual scene updates for this turn.',
+      )
+    }
+    setTurnState('completed')
+    setTurnStatusMessage(`Turn ${turn.turn_id} completed (${turn.visual_patches.length} patches).`)
+    if (turnStartedAtMs) {
+      setTurnElapsedMs(Math.max(0, Date.now() - turnStartedAtMs))
+    }
+    setTurnStartedAtMs(null)
     if (turn.voice?.engine === 'tone-fallback') {
       speakInBrowser(turn.text || '')
     }
@@ -719,7 +750,14 @@ export default function App() {
   async function runTurn() {
     setRunning(true)
     setLastError('')
-    appendAgentLog('agent.turn.requested', `Prompt: ${previewText(prompt, 160)}`)
+    const promptPreview = previewText(prompt, 160)
+    setActivePromptPreview(promptPreview)
+    setTurnState('running')
+    setTurnStatusMessage('Turn submitted. Backend agent is running...')
+    setTurnStartedAtMs(Date.now())
+    setTurnElapsedMs(0)
+    appendAgentLog('agent.turn.requested', `Prompt: ${promptPreview}`)
+    appendAgentLog('agent.turn.running', 'Turn submitted to backend. Waiting for response.')
     try {
       const reqBody = {
         session_id: session,
@@ -745,11 +783,26 @@ export default function App() {
     } catch (err) {
       const msg = formatClientError(err, 'orchestrate', 'Unknown run-turn failure')
       setLastError(msg)
+      setTurnState('failed')
+      setTurnStatusMessage(msg)
+      setTurnStartedAtMs(null)
       appendAgentLog('agent.turn.failed', msg)
     } finally {
       setRunning(false)
     }
   }
+
+  useEffect(() => {
+    if (turnState !== 'running' || !turnStartedAtMs) {
+      return
+    }
+    const timer = window.setInterval(() => {
+      setTurnElapsedMs(Math.max(0, Date.now() - turnStartedAtMs))
+    }, 250)
+    return () => {
+      window.clearInterval(timer)
+    }
+  }, [turnState, turnStartedAtMs])
 
   async function transcribeSelectedAudio() {
     if (!audioFile) {
@@ -1023,6 +1076,18 @@ export default function App() {
   const sttEngine = runtimeCaps?.voice?.stt?.selected_engine || 'unknown'
   const ttsEngine = runtimeCaps?.voice?.tts?.selected_engine || 'unknown'
   const selectedRun = runs.find((run) => run.run_id === selectedRunId) || null
+  const turnStateLabel = useMemo(() => {
+    if (turnState === 'running') {
+      return 'Running'
+    }
+    if (turnState === 'completed') {
+      return 'Completed'
+    }
+    if (turnState === 'failed') {
+      return 'Failed'
+    }
+    return 'Ready'
+  }, [turnState])
 
   return (
     <div className="app-shell">
@@ -1384,6 +1449,18 @@ export default function App() {
         <section className="card prompt-composer" data-testid="prompt-composer">
           <h2>Prompt Composer</h2>
           <p className="muted">Session: {session}</p>
+          <p className={`turn-status turn-status-${turnState}`} data-testid="turn-status">
+            <span className="turn-status-dot" aria-hidden="true" />
+            <span>
+              Turn status: {turnStateLabel}
+              {turnState === 'running' ? ` (${Math.max(1, Math.ceil(turnElapsedMs / 1000))}s)` : ''}
+            </span>
+          </p>
+          <p className="muted">
+            {turnState === 'running' && activePromptPreview
+              ? `Running prompt: ${activePromptPreview}`
+              : turnStatusMessage}
+          </p>
           <textarea
             aria-label="prompt input"
             className="composer-input"

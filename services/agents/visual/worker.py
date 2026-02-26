@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import random
 import re
 
@@ -28,6 +29,8 @@ SHAPE_ALIASES = {
     "rectangle": "rectangle",
     "rect": "rectangle",
     "circle": "circle",
+    "ball": "circle",
+    "balls": "circle",
     "dot": "dot",
     "line": "line",
     "triangle": "triangle",
@@ -36,6 +39,10 @@ NOUN_STOP_WORDS = {
     "a",
     "an",
     "the",
+    "this",
+    "that",
+    "these",
+    "those",
     "draw",
     "sketch",
     "paint",
@@ -43,6 +50,19 @@ NOUN_STOP_WORDS = {
     "illustrate",
     "show",
     "create",
+    "make",
+    "build",
+    "generate",
+    "please",
+    "can",
+    "could",
+    "would",
+    "will",
+    "just",
+    "only",
+    "now",
+    "then",
+    "also",
     "with",
     "and",
     "in",
@@ -50,7 +70,50 @@ NOUN_STOP_WORDS = {
     "to",
     "for",
     "of",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "being",
+    "been",
+    "am",
+    "do",
+    "does",
+    "did",
+    "what",
+    "why",
+    "how",
+    "when",
+    "where",
+    "who",
+    "whom",
+    "which",
+    "explain",
+    "describe",
+    "tell",
+    "about",
+    "me",
+    "my",
+    "your",
+    "our",
+    "their",
 }
+COUNT_WORDS = {
+    "a": 1,
+    "an": 1,
+    "one": 1,
+    "two": 2,
+    "both": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+}
+VISUAL_TRUE_VALUES = {"1", "true", "yes", "on"}
+LEGACY_TEMPLATE_SCENES_ENV = "OPENCOMMOTION_ENABLE_LEGACY_TEMPLATE_SCENES"
 
 
 def _has_word(prompt: str, word: str) -> bool:
@@ -253,6 +316,163 @@ def _wants_cow_moon_lyric_scene(prompt: str) -> bool:
     return has_cow_moon and has_lyric_intent
 
 
+def _legacy_template_scenes_enabled() -> bool:
+    raw = os.getenv(LEGACY_TEMPLATE_SCENES_ENV, "").strip().lower()
+    return raw in VISUAL_TRUE_VALUES
+
+
+def _extract_count_for_noun(prompt: str, singular: str, plural: str, *, default: int = 1, max_count: int = 8) -> int:
+    noun_pattern = rf"(?:{re.escape(singular)}|{re.escape(plural)})"
+    match = re.search(rf"\b(\d{{1,2}})\s+(?:\w+\s+){{0,2}}{noun_pattern}\b", prompt)
+    if match:
+        try:
+            return max(1, min(max_count, int(match.group(1))))
+        except ValueError:
+            pass
+
+    for token, value in COUNT_WORDS.items():
+        if re.search(rf"\b{re.escape(token)}\s+(?:\w+\s+){{0,2}}{noun_pattern}\b", prompt):
+            return value
+
+    if _has_word(prompt, plural):
+        return min(2, max_count)
+    return default
+
+
+def _extract_ball_count(prompt: str) -> int:
+    return _extract_count_for_noun(prompt, singular="ball", plural="balls", default=1, max_count=8)
+
+
+def _spawn_actor_stroke(
+    *,
+    stroke_id: str,
+    actor_id: str,
+    actor_type: str,
+    x: int,
+    y: int,
+    style: dict,
+    start_ms: int,
+    duration_ms: int = 220,
+    easing: str = "easeOutCubic",
+) -> dict:
+    return {
+        "stroke_id": stroke_id,
+        "kind": "spawnSceneActor",
+        "params": {
+            "actor_id": actor_id,
+            "actor_type": actor_type,
+            "x": x,
+            "y": y,
+            "style": style,
+        },
+        "timing": {"start_ms": start_ms, "duration_ms": duration_ms, "easing": easing},
+    }
+
+
+def _set_actor_motion_stroke(
+    *,
+    stroke_id: str,
+    actor_id: str,
+    motion_name: str,
+    path_points: list[list[int]],
+    duration_ms: int,
+    start_ms: int,
+    easing: str = "easeInOutSine",
+    loop: bool = True,
+) -> dict:
+    return {
+        "stroke_id": stroke_id,
+        "kind": "setActorMotion",
+        "params": {
+            "actor_id": actor_id,
+            "motion": {
+                "name": motion_name,
+                "loop": loop,
+                "duration_ms": duration_ms,
+                "path_points": path_points,
+            },
+        },
+        "timing": {"start_ms": start_ms, "duration_ms": duration_ms, "easing": easing},
+    }
+
+
+def _wants_bouncing_balls_scene(prompt: str) -> bool:
+    has_ball = _has_word(prompt, "ball") or _has_word(prompt, "balls")
+    has_bounce = any(_has_word(prompt, token) for token in ("bounce", "bouncing", "bouncy"))
+    lyric_karaoke_context = any(token in prompt for token in ("lyric", "lyrics", "phrase", "word", "synced to each word"))
+    return has_ball and has_bounce and not lyric_karaoke_context
+
+
+def _build_bouncing_balls_strokes(prompt: str, mode: str) -> list[dict]:
+    count = _extract_ball_count(prompt)
+    color_name, color_hex = _extract_color(prompt, default="#f43f5e")
+    radius = max(12, min(56, int(_size_hint(prompt, fallback=86) * 0.42)))
+    gap = max(80, min(170, int(560 / max(count, 1))))
+    center_x = 360
+    base_y = 258
+
+    palette = [color_hex, "#22d3ee", "#34d399", "#f59e0b", "#60a5fa", "#f472b6", "#a78bfa", "#f87171"]
+    strokes: list[dict] = [
+        {
+            "stroke_id": "render-mode-bouncing-balls",
+            "kind": "setRenderMode",
+            "params": {"mode": mode},
+            "timing": {"start_ms": 0, "duration_ms": 80, "easing": "linear"},
+        }
+    ]
+
+    for idx in range(count):
+        actor_id = f"ball_{idx + 1}"
+        x = int(round(center_x + (idx - (count - 1) / 2.0) * gap))
+        y = base_y
+        amp = max(36, min(120, 92 - idx * 8))
+        duration_ms = 1100 + idx * 140
+        ball_color = palette[idx % len(palette)]
+        strokes.extend(
+            [
+                _spawn_actor_stroke(
+                    stroke_id=f"spawn-{actor_id}",
+                    actor_id=actor_id,
+                    actor_type="circle",
+                    x=x,
+                    y=y,
+                    style={
+                        "radius": radius,
+                        "fill": ball_color,
+                        "stroke": "#e2e8f0",
+                        "line_width": 2,
+                        "color_name": color_name,
+                    },
+                    start_ms=80 + idx * 35,
+                ),
+                _set_actor_motion_stroke(
+                    stroke_id=f"bounce-{actor_id}",
+                    actor_id=actor_id,
+                    motion_name="bounce",
+                    duration_ms=duration_ms,
+                    path_points=[
+                        [x, y],
+                        [x, y - amp],
+                        [x, y],
+                        [x, y - int(amp * 0.82)],
+                        [x, y],
+                    ],
+                    start_ms=180 + idx * 90,
+                ),
+            ]
+        )
+
+    strokes.append(
+        {
+            "stroke_id": "bouncing-balls-note",
+            "kind": "annotateInsight",
+            "params": {"text": f"Rendering {count} bouncing ball{'s' if count != 1 else ''} from prompt intent."},
+            "timing": {"start_ms": 140, "duration_ms": 220, "easing": "linear"},
+        }
+    )
+    return strokes
+
+
 def _extract_subject_noun(prompt: str) -> str:
     tokens = re.findall(r"[a-z]+", prompt)
     for token in tokens:
@@ -452,7 +672,7 @@ def _build_palette_script_strokes(prompt: str, mode: str) -> list[dict]:
             "stroke_id": "palette-script-note",
             "kind": "annotateInsight",
             "params": {
-                "text": f"Tool routing: no prefab for '{subject_label}', using palette script with point/motion commands."
+                "text": f"Interface primitives route: no prefab for '{subject_label}', using palette script with point/motion commands."
             },
             "timing": {"start_ms": 120, "duration_ms": 200, "easing": "linear"},
         },
@@ -472,12 +692,14 @@ def generate_visual_strokes(prompt: str) -> list[dict]:
     market_growth_scene = _wants_market_growth_scene(p)
     day_night_scene = _wants_day_night_scene(p)
     cow_moon_lyric_scene = _wants_cow_moon_lyric_scene(p)
+    bouncing_balls_scene = _wants_bouncing_balls_scene(p)
     fish_scene = _wants_fish_scene(p)
     fish_actor_scene = _wants_fish_actor_scene(p)
+    legacy_template_scenes = _legacy_template_scenes_enabled()
     mode = _render_mode(p)
     strokes: list[dict] = []
 
-    if "moonwalk" in p:
+    if legacy_template_scenes and "moonwalk" in p:
         strokes.extend(
             [
                 {
@@ -495,7 +717,7 @@ def generate_visual_strokes(prompt: str) -> list[dict]:
             ]
         )
 
-    if "globe" in p or "ufo" in p:
+    if legacy_template_scenes and ("globe" in p or "ufo" in p):
         strokes.extend(
             [
                 {
@@ -513,7 +735,7 @@ def generate_visual_strokes(prompt: str) -> list[dict]:
             ]
         )
 
-    if "chart" in p or "adoption" in p or "pie" in p or market_growth_scene:
+    if legacy_template_scenes and ("chart" in p or "adoption" in p or "pie" in p or market_growth_scene):
         line_params = {}
         pie_params = {}
         if market_growth_scene:
@@ -546,7 +768,7 @@ def generate_visual_strokes(prompt: str) -> list[dict]:
             ]
         )
 
-    if market_growth_scene:
+    if legacy_template_scenes and market_growth_scene:
         strokes.extend(
             [
                 {
@@ -583,7 +805,7 @@ def generate_visual_strokes(prompt: str) -> list[dict]:
             ]
         )
 
-    if day_night_scene:
+    if legacy_template_scenes and day_night_scene:
         strokes.extend(
             [
                 {
@@ -613,7 +835,7 @@ def generate_visual_strokes(prompt: str) -> list[dict]:
             ]
         )
 
-    if cow_moon_lyric_scene:
+    if legacy_template_scenes and cow_moon_lyric_scene:
         words = ["The", "cow", "jumps", "over", "the", "moon"]
         strokes.extend(
             [
@@ -663,6 +885,9 @@ def generate_visual_strokes(prompt: str) -> list[dict]:
                 },
             ]
         )
+
+    if bouncing_balls_scene:
+        strokes.extend(_build_bouncing_balls_strokes(prompt=p, mode=mode))
 
     if fish_scene:
         bowl_shape = "square" if any(term in p for term in ("square", "box", "cube", "rectangular")) else "round"
@@ -846,7 +1071,8 @@ def generate_visual_strokes(prompt: str) -> list[dict]:
         if shape_strokes:
             strokes.extend(shape_strokes)
 
-    if not strokes and _draw_intent(p):
+    if not strokes and p.strip():
+        # Always produce a visual scene for non-empty prompts, even when the user did not use draw verbs.
         strokes.extend(_build_palette_script_strokes(prompt=p, mode=mode))
 
     if strokes:

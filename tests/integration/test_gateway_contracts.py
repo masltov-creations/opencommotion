@@ -187,6 +187,7 @@ def test_artifact_modes_pin_archive_and_schema_guard(tmp_path, monkeypatch) -> N
 
 
 def test_market_growth_graph_quality_report_is_compatible(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("OPENCOMMOTION_ENABLE_LEGACY_TEMPLATE_SCENES", "1")
     c = _client_with_inprocess_orchestrator(tmp_path, monkeypatch)
     res = c.post(
         "/v1/orchestrate",

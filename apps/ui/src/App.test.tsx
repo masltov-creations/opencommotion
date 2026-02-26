@@ -46,12 +46,14 @@ describe('App', () => {
     const visualHeading = screen.getByRole('heading', { name: 'Visual Surface' })
     const composerHeading = screen.getByRole('heading', { name: 'Prompt Composer' })
     expect(visualHeading.compareDocumentPosition(composerHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByTestId('turn-status')).toHaveTextContent('Turn status: Ready')
 
     const saveButton = screen.getByRole('button', { name: 'Save' })
     expect(saveButton).toBeDisabled()
 
     await user.click(screen.getByRole('button', { name: 'Run Turn' }))
     await screen.findByText('OpenCommotion: moonwalk demo.')
+    expect(screen.getByTestId('turn-status')).toHaveTextContent('Turn status: Completed')
     expect(screen.getByText(/Patch count:\s*1/)).toBeInTheDocument()
     expect(saveButton).toBeEnabled()
 

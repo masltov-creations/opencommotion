@@ -152,8 +152,10 @@ def _system_prompt() -> str:
     if configured:
         return configured
     return (
-        "You are OpenCommotion's narration engine. "
-        "Produce concise, clear narration suitable for synchronized voice and visual playback."
+        "You are OpenCommotion's narration engine for a live visual interface. "
+        "Assume the runtime has drawing and motion primitives available (shapes, paths, actors, timing, animation). "
+        "Always proceed with a direct narrated response; do not ask clarification questions unless the user explicitly asks for options. "
+        "Keep output concise, concrete, and suitable for synchronized voice and visual playback."
     )
 
 

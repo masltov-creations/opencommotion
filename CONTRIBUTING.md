@@ -5,21 +5,39 @@
 1. Create a focused branch from `main`.
 2. Keep changes scoped to one concern (runtime, protocol, docs, tests, etc.).
 3. Run required local gates before opening a PR.
-4. Use descriptive commit messages with explicit behavior changes.
+4. Keep `PROJECT.md` current in every implementation session.
+5. Use descriptive commit messages with explicit behavior changes.
+
+## Required plan tracking (interrupt-safe)
+
+If you changed implementation files, you must update `PROJECT.md` in the same branch/session:
+
+1. Update `Updated:` to the current date.
+2. Update `Current status`.
+3. Update `Progress checklist` accurately.
+4. Update `Active tasks` with:
+   - planned
+   - done
+   - in progress/not finished
+   - remaining
+5. Append a `Change log` line with concrete evidence (test command, validation command, or artifact path).
+
+CI enforces this with `scripts/check_project_plan_sync.py`.
 
 ## Required local gates before PR
 
 ```bash
-make test-all
-make test-e2e
-make security-checks
-make perf-checks
+python3 scripts/opencommotion.py test
+python3 scripts/opencommotion.py test-ui
+python3 scripts/opencommotion.py test-e2e
+python3 scripts/opencommotion.py doctor
 ```
 
-For end-user workflow confidence:
+For full end-user workflow confidence:
 
 ```bash
-make fresh-agent-e2e
+python3 scripts/opencommotion.py test-complete
+python3 scripts/opencommotion.py fresh-agent-e2e
 ```
 
 ## Quality standards
@@ -34,6 +52,7 @@ make fresh-agent-e2e
 
 - [ ] Feature/bug behavior clearly described
 - [ ] Tests added or updated
-- [ ] `make test-complete` passes
-- [ ] `make fresh-agent-e2e` passes
+- [ ] `PROJECT.md` updated with accurate status and change log evidence
+- [ ] `python3 scripts/opencommotion.py test-complete` passes
+- [ ] `python3 scripts/opencommotion.py fresh-agent-e2e` passes
 - [ ] Documentation updated where applicable

@@ -100,6 +100,115 @@ echo '{"type":"item.completed","item":{"type":"agent_message","text":"codex synt
     assert text == "OpenCommotion: codex synthetic reply"
 
 
+def test_generate_text_response_clarification_falls_back_to_heuristic(tmp_path, monkeypatch) -> None:
+    fake_codex = tmp_path / "fake-codex-question"
+    _write_executable(
+        fake_codex,
+        """#!/usr/bin/env bash
+echo '{"type":"item.completed","item":{"type":"agent_message","text":"Do you want a single image?"}}'
+""",
+    )
+    monkeypatch.setenv("OPENCOMMOTION_LLM_PROVIDER", "codex-cli")
+    monkeypatch.setenv("OPENCOMMOTION_LLM_ALLOW_FALLBACK", "true")
+    monkeypatch.setenv("OPENCOMMOTION_CODEX_BIN", str(fake_codex))
+
+    text = worker.generate_text_response("show a moonwalk with adoption chart and pie")
+    assert text.startswith("OpenCommotion:")
+    assert "show a moonwalk with adoption chart and pie" in text
+    assert "Do you want a single image?" not in text
+
+
+def test_generate_text_response_clarification_without_fallback_forces_progress(tmp_path, monkeypatch) -> None:
+    fake_codex = tmp_path / "fake-codex-question-no-fallback"
+    _write_executable(
+        fake_codex,
+        """#!/usr/bin/env bash
+echo '{"type":"item.completed","item":{"type":"agent_message","text":"Do you want a single image?"}}'
+""",
+    )
+    monkeypatch.setenv("OPENCOMMOTION_LLM_PROVIDER", "codex-cli")
+    monkeypatch.setenv("OPENCOMMOTION_LLM_ALLOW_FALLBACK", "false")
+    monkeypatch.setenv("OPENCOMMOTION_CODEX_BIN", str(fake_codex))
+
+    text = worker.generate_text_response("draw a fish")
+    assert text.startswith("OpenCommotion:")
+    assert "draw a fish" in text
+    assert "Do you want a single image?" not in text
+
+
+def test_generate_text_response_wraps_cli_prompt_with_invocation_context(monkeypatch) -> None:
+    captured: dict[str, str] = {}
+
+    class FakeAdapter:
+        def generate(self, prompt: str) -> str:
+            captured["prompt"] = prompt
+            return "rendering now"
+
+        def capabilities(self, probe: bool = False) -> dict[str, object]:
+            return {"ready": True}
+
+    adapters_map = {
+        "heuristic": worker.build_adapters(timeout_s=20)["heuristic"],
+        "ollama": FakeAdapter(),
+        "openai-compatible": FakeAdapter(),
+        "codex-cli": FakeAdapter(),
+        "openclaw-cli": FakeAdapter(),
+        "openclaw-openai": FakeAdapter(),
+    }
+    monkeypatch.setattr(worker, "build_adapters", lambda timeout_s: adapters_map)  # noqa: ARG005
+    monkeypatch.setenv("OPENCOMMOTION_LLM_PROVIDER", "codex-cli")
+    monkeypatch.setenv("OPENCOMMOTION_LLM_ALLOW_FALLBACK", "false")
+
+    text = worker.generate_text_response("show a bouncing ball")
+    assert text == "OpenCommotion: rendering now"
+    sent = captured.get("prompt", "")
+    assert "Invocation context:" in sent
+    assert "User prompt:" in sent
+    assert "show a bouncing ball" in sent
+
+
+def test_rewrite_visual_prompt_parses_structured_response(tmp_path, monkeypatch) -> None:
+    fake_codex = tmp_path / "fake-codex-rewrite"
+    _write_executable(
+        fake_codex,
+        """#!/usr/bin/env bash
+echo '{"type":"item.completed","item":{"type":"agent_message","text":"VISUAL_PROMPT: draw two circles and animate both with bounce motion\\nSCENE_REQUEST: no"}}'
+""",
+    )
+    monkeypatch.setenv("OPENCOMMOTION_LLM_PROVIDER", "codex-cli")
+    monkeypatch.setenv("OPENCOMMOTION_LLM_ALLOW_FALLBACK", "false")
+    monkeypatch.setenv("OPENCOMMOTION_CODEX_BIN", str(fake_codex))
+
+    rewritten, meta = worker.rewrite_visual_prompt(
+        "show 2 bouncing balls",
+        context="scene_id=demo revision=0 entity_count=0",
+        first_turn=True,
+    )
+    assert rewritten == "draw two circles and animate both with bounce motion"
+    assert meta["scene_request"] is False
+
+
+def test_rewrite_visual_prompt_supports_scene_request(tmp_path, monkeypatch) -> None:
+    fake_codex = tmp_path / "fake-codex-scene-request"
+    _write_executable(
+        fake_codex,
+        """#!/usr/bin/env bash
+echo '{"type":"item.completed","item":{"type":"agent_message","text":"VISUAL_PROMPT: update fish behavior to bloop\\nSCENE_REQUEST: yes"}}'
+""",
+    )
+    monkeypatch.setenv("OPENCOMMOTION_LLM_PROVIDER", "codex-cli")
+    monkeypatch.setenv("OPENCOMMOTION_LLM_ALLOW_FALLBACK", "false")
+    monkeypatch.setenv("OPENCOMMOTION_CODEX_BIN", str(fake_codex))
+
+    rewritten, meta = worker.rewrite_visual_prompt(
+        "make fish blooop",
+        context="scene_id=fish revision=2 entity_count=3",
+        first_turn=False,
+    )
+    assert rewritten == "update fish behavior to bloop"
+    assert meta["scene_request"] is True
+
+
 def test_generate_text_response_with_openclaw_cli_provider(tmp_path, monkeypatch) -> None:
     fake_openclaw = tmp_path / "fake-openclaw"
     _write_executable(

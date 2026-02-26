@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from services.artifact_registry.opencommotion_artifacts.registry import ArtifactRegistry
 from services.gateway.app import main as gateway_main
 from services.orchestrator.app.main import app as orchestrator_app
+from services.orchestrator.app import main as orchestrator_main
 from services.scene_v2 import SceneV2Store
 
 
@@ -158,3 +159,58 @@ def test_v2_runtime_capabilities_includes_limits_and_recipes(tmp_path, monkeypat
     assert payload["features"]["shaderRecipes"] is True
     assert payload["limits"]["max_patch_ops_per_turn"] >= 1
     assert isinstance(payload.get("shader_recipes", []), list)
+
+
+def test_v2_turn_without_visual_delta_emits_agent_context_reminder(tmp_path, monkeypatch) -> None:
+    def no_visual_worker(_prompt: str) -> list[dict]:
+        return [
+            {
+                "stroke_id": "note-only",
+                "kind": "annotateInsight",
+                "params": {"text": "text-only response"},
+                "timing": {"start_ms": 0, "duration_ms": 120, "easing": "linear"},
+            }
+        ]
+
+    monkeypatch.setattr(orchestrator_main, "generate_visual_strokes", no_visual_worker)
+
+    c = _client_with_v2_scene_runtime(tmp_path, monkeypatch)
+    res = c.post(
+        "/v2/orchestrate",
+        json={
+            "session_id": "v2-reminder",
+            "scene_id": "reminder-scene",
+            "prompt": "explain why",
+        },
+    )
+    assert res.status_code == 200
+    payload = res.json()
+    warnings = payload.get("warnings", [])
+    assert any(str(row).startswith("agent_context_reminder_applied") for row in warnings)
+
+
+def test_v2_orchestrate_applies_prompt_rewrite_and_scene_request_flow(tmp_path, monkeypatch) -> None:
+    calls: list[dict[str, object]] = []
+
+    def fake_rewrite(prompt: str, *, context: str, first_turn: bool):
+        calls.append({"prompt": prompt, "context": context, "first_turn": first_turn})
+        if len(calls) == 1:
+            return "update fish behavior to bloop", {"scene_request": True, "warnings": ["prompt_rewrite_scene_request:mock"]}
+        return "draw a fish bowl with a fish swimming in it", {"scene_request": False, "warnings": ["prompt_rewrite_provider_applied:mock"]}
+
+    monkeypatch.setattr(gateway_main, "rewrite_visual_prompt", fake_rewrite)
+    c = _client_with_v2_scene_runtime(tmp_path, monkeypatch)
+    res = c.post(
+        "/v2/orchestrate",
+        json={
+            "session_id": "v2-rewrite-flow",
+            "scene_id": "rewrite-scene",
+            "prompt": "make the fish blooop",
+        },
+    )
+    assert res.status_code == 200
+    payload = res.json()
+    warnings = payload.get("warnings", [])
+    assert any(str(row).startswith("prompt_rewrite_applied:") for row in warnings)
+    assert "agent_scene_request_honored" in warnings
+    assert len(calls) >= 2

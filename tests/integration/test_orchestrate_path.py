@@ -42,7 +42,8 @@ def test_orchestrate_fish_scene_2d_and_3d_modes() -> None:
     assert "applyMaterialFx" in three_d_kinds
 
 
-def test_orchestrate_cow_moon_and_day_night_scenarios() -> None:
+def test_orchestrate_cow_moon_and_day_night_scenarios(monkeypatch) -> None:
+    monkeypatch.setenv("OPENCOMMOTION_ENABLE_LEGACY_TEMPLATE_SCENES", "1")
     c = TestClient(app)
 
     cow = c.post(

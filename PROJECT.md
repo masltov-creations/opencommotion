@@ -18,6 +18,15 @@ Plan update protocol (required):
 - If work is partial, mark as in progress/pending and capture the blocker explicitly in `Active tasks`.
 - Keep this file truthful even when other docs lag.
 
+Interruption-safe checkpoint format (required):
+- For any task currently being implemented, include a checkpoint block in `Active tasks` with:
+  - `planned`
+  - `done in this session`
+  - `in progress / not finished`
+  - `remaining`
+- Add enough detail that another agent can resume without prior context.
+- Keep stale checkpoints out: remove or close blocks when the task is fully complete.
+
 Current status:
 - Overall project status: in progress
 - Production readiness sign-off: pending final deployment validation
@@ -100,6 +109,7 @@ Progress checklist:
 - [x] Stretch Scenario D baseline implementation (fish bowl cinematic primitives + tests)
 - [x] Prompt-probe required scenario baseline (A/B/C/D path expectations pass with seed set)
 - [x] V2 scene-state scaffolding: schema family, `/v2/*` API surface, deterministic op apply engine, scene snapshot endpoints
+- [x] Plan-tracking enforcement gate (CI check requires `PROJECT.md` sync on implementation changes)
 - [ ] Long-haul soak/recovery evidence in production-like environment
 - [ ] Final production readiness sign-off
 
@@ -124,6 +134,31 @@ Active tasks:
  - run `python3 scripts/prompt_compat_probe.py --inprocess --seed 23`
  - triage required failures as bugs and exploratory misses as enhancement candidates
  - update `docs/TOOL_ENHANCEMENT_BACKLOG.md` with status + acceptance criteria
+7. Composable visual constituent parts:
+ - continue refactoring prompt handlers to reusable actor/motion/material scene builders
+ - keep quantity-aware noun mapping generic (multi-instance scenes should not require bespoke one-offs)
+ - gate with unit tests + prompt probe snapshots for regression control
+8. Prompt-context pipeline hardening (in progress):
+ - planned:
+   - first-turn prompt rewrite with explicit context + skill reference + examples before rendering
+   - follow-up prompt rewrite with scene-delta context and continuity rules
+   - scene-request loop so agent can request current scene context before final rewrite
+ - done in this session:
+   - tightened rewrite contract to explicit runtime execution language (imperative draw/update semantics) in text worker (`services/agents/text/worker.py`)
+   - expanded gateway v2 rewrite context with invocation phase + capability hints (`services/gateway/app/main.py`)
+   - added narration invocation wrapper so non-heuristic providers are told exactly how OpenCommotion invokes them (`services/agents/text/worker.py`)
+   - added non-actionable response guard (clarification/refusal text gets forced-progress narration) in text worker (`services/agents/text/worker.py`)
+   - added unit coverage for CLI invocation wrapper and clarification fallback behavior (`tests/unit/test_text_worker.py`)
+   - validation evidence:
+     - `.venv/bin/python -m pytest -q -s tests/unit/test_text_worker.py` (14 passed)
+     - `.venv/bin/python -m pytest -q -s tests/integration/test_gateway_v2_scene_state.py::test_v2_orchestrate_applies_prompt_rewrite_and_scene_request_flow tests/integration/test_gateway_v2_scene_state.py::test_v2_turn_without_visual_delta_emits_agent_context_reminder` (2 passed)
+     - `.venv/bin/python scripts/opencommotion.py test-complete` (pass)
+     - `.venv/bin/python scripts/opencommotion.py fresh-agent-e2e` (pass)
+ - in progress / not finished:
+   - follow-up scene-delta optimization coverage needs additional integration assertions for multi-turn mutation prompts
+ - remaining:
+   - extend integration tests for “agent asks question” and “no scene update then reminder” under codex/openclaw provider simulations
+   - close task only after end-to-end prompt runs confirm scene updates on first and follow-up turns
 
 Validation commands:
 - `python3 scripts/opencommotion.py test`
@@ -166,3 +201,13 @@ Change log:
 - 2026-02-25: Added prompt compatibility probe script and triaged scenario A/B tool gaps plus exploratory prompt enhancement candidate.
 - 2026-02-25: Implemented scenario A (cow/moon lyric+bouncing-ball) and scenario B (day/night transition) baseline support; prompt probe required failures reduced to zero.
 - 2026-02-26: Added V2 scene-state contract + gateway endpoints (`/v2/orchestrate`, `/v2/events/ws`, `/v2/runtime/capabilities`, `/v2/scenes/*`), deterministic op engine/store, and UI default switch to `/v2` with legacy patch compatibility lane.
+- 2026-02-26: Refactored visual worker with reusable scene-builder primitives for actor spawn/motion and added quantity-aware bouncing-ball composition so plural prompts map to composable multi-actor output.
+- 2026-02-26: Added prompt-to-backend lifecycle visibility in UI (turn status pill with running timer + completed/failed state messaging) and test coverage for status transitions.
+- 2026-02-26: Changed visual fallback policy so any non-empty prompt produces scene primitives (not text-only), and tightened noun extraction + interface-primitives routing annotations for generic prompt coverage.
+- 2026-02-26: Disabled legacy canned scene templates by default (opt-in via `OPENCOMMOTION_ENABLE_LEGACY_TEMPLATE_SCENES=1`), strengthened narration-agent context to avoid clarification loops, and updated default UI prompt to a non-template scene.
+- 2026-02-26: Added v2 “no scene update” guard: gateway now applies an agent-context reminder retry when a turn yields no visual delta, surfaces reminder warnings to UI, and logs reminder status in the backend agent thread.
+- 2026-02-26: Checkpointed in-progress prompt-context rewrite pipeline work (gateway+text-worker partial wiring) with explicit planned/done/in-progress/remaining status to preserve interruption recovery.
+- 2026-02-26: Added enforced plan-sync guard (`scripts/check_project_plan_sync.py`) and CI workflow validation so implementation changes require synchronized `PROJECT.md` updates with current `Updated:` date.
+- 2026-02-26: Formalized interruption-safe checkpoint format in `PROJECT.md` so every in-flight task captures planned/done/in-progress/remaining for handoff continuity.
+- 2026-02-26: Hardened LLM invocation context for narration/rewrite (explicit runtime contract + capability-aware context + forced-progress handling for clarification/refusal responses) and added unit tests for CLI provider wrapper behavior.
+- 2026-02-26: Completed full validation gate (`test-complete`) plus fresh-agent consumer E2E (`fresh-agent-e2e`) after context-hardening changes; both passed on this branch.
