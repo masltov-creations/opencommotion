@@ -18,7 +18,7 @@ describe('App', () => {
     vi.unstubAllGlobals()
   })
 
-  it('runs a turn, saves an artifact, and shows search results', async () => {
+  it('shows visual surface before prompt composer and supports drawer tools flow', async () => {
     const fetchMock = vi.fn<typeof fetch>()
     fetchMock
       .mockResolvedValueOnce(
@@ -43,6 +43,10 @@ describe('App', () => {
     const user = userEvent.setup()
     render(<App />)
 
+    const visualHeading = screen.getByRole('heading', { name: 'Visual Surface' })
+    const composerHeading = screen.getByRole('heading', { name: 'Prompt Composer' })
+    expect(visualHeading.compareDocumentPosition(composerHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
     const saveButton = screen.getByRole('button', { name: 'Save' })
     expect(saveButton).toBeDisabled()
 
@@ -64,6 +68,8 @@ describe('App', () => {
       expect.objectContaining({ method: 'POST' }),
     )
 
+    await user.click(screen.getByRole('button', { name: 'Tools' }))
+    await screen.findByRole('heading', { name: 'Agent Run Manager' })
     await user.type(screen.getByPlaceholderText('search artifacts'), 'moonwalk')
     await user.click(screen.getByRole('button', { name: 'Search' }))
 

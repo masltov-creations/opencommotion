@@ -214,6 +214,7 @@ export default function App() {
   const [queuedPrompt, setQueuedPrompt] = useState('autonomous turn: continue narrative and visuals')
   const [runActionLoading, setRunActionLoading] = useState(false)
   const [browserSpeaking, setBrowserSpeaking] = useState(false)
+  const [toolsOpen, setToolsOpen] = useState(false)
 
   const session = useMemo(() => `sess-${Math.random().toString(36).slice(2)}`, [])
   const authHeaders = useMemo(() => {
@@ -235,6 +236,27 @@ export default function App() {
     () => typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window,
     [],
   )
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || isTestMode) {
+      return
+    }
+    const saved = window.localStorage.getItem('opencommotion.tools.open')
+    if (saved === '1' || saved === '0') {
+      setToolsOpen(saved === '1')
+      return
+    }
+    if (setupMode) {
+      setToolsOpen(true)
+    }
+  }, [setupMode, isTestMode])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || isTestMode) {
+      return
+    }
+    window.localStorage.setItem('opencommotion.tools.open', toolsOpen ? '1' : '0')
+  }, [toolsOpen, isTestMode])
 
   function speakInBrowser(textToSpeak: string): void {
     if (!browserSpeechSupported) {
@@ -751,6 +773,19 @@ export default function App() {
   }, [browserSpeechSupported])
 
   useEffect(() => {
+    if (typeof window === 'undefined' || !toolsOpen) {
+      return
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setToolsOpen(false)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [toolsOpen])
+
+  useEffect(() => {
     if (isTestMode) {
       return
     }
@@ -823,273 +858,22 @@ export default function App() {
           <h1>OpenCommotion</h1>
           <p className="lead">Prompt in. Narrated motion scene out. No interpretive dance required.</p>
         </div>
-        <div className="brand-badges">
-          <span className={`badge ${llmReady ? 'ok' : 'warn'}`}>LLM: {llmEffectiveProvider}</span>
-          <span className="badge">STT: {sttEngine}</span>
-          <span className="badge">TTS: {ttsEngine}</span>
+        <div className="brand-right">
+          <div className="brand-badges">
+            <span className={`badge ${llmReady ? 'ok' : 'warn'}`}>LLM: {llmEffectiveProvider}</span>
+            <span className="badge">STT: {sttEngine}</span>
+            <span className="badge">TTS: {ttsEngine}</span>
+          </div>
+          <button className="tools-toggle" onClick={() => setToolsOpen((current) => !current)}>
+            {toolsOpen ? 'Close Tools' : 'Tools'}
+          </button>
         </div>
       </header>
 
-      <div className="layout">
-        <aside className="panel control-panel">
-          <section className="section-block">
-            <h2>Command Deck</h2>
-            <p className="muted">Session: {session}</p>
-            <textarea rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
-            <div className="row">
-              <button onClick={runTurn} disabled={running}>{running ? 'Running...' : 'Run Turn'}</button>
-              <button onClick={saveArtifact} disabled={!text}>Save</button>
-            </div>
-          </section>
-
-          <section className="section-block voice-panel">
-            <h3>Voice Input</h3>
-            <input
-              aria-label="voice file"
-              type="file"
-              accept="audio/*"
-              onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
-            />
-            <button onClick={transcribeSelectedAudio} disabled={!audioFile || transcribing}>
-              {transcribing ? 'Transcribing...' : 'Transcribe Audio'}
-            </button>
-            <p className="muted">{transcript || 'No transcript yet.'}</p>
-          </section>
-
-          <section className="section-block">
-            <h3>Artifact Search</h3>
-            <div className="row">
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="search artifacts"
-              />
-              <select
-                aria-label="search mode"
-                value={searchMode}
-                onChange={(e) => setSearchMode(e.target.value as 'lexical' | 'semantic' | 'hybrid')}
-              >
-                <option value="hybrid">hybrid</option>
-                <option value="semantic">semantic</option>
-                <option value="lexical">lexical</option>
-              </select>
-              <button onClick={searchArtifacts}>Search</button>
-            </div>
-            <ul className="results">
-              {results.map((r) => (
-                <li key={r.artifact_id}>
-                  <div>{r.title}</div>
-                  <small>
-                    {r.match_mode || 'n/a'}
-                    {typeof r.score === 'number' ? ` · ${r.score.toFixed(3)}` : ''}
-                  </small>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section className="section-block run-panel">
-            <h3>Agent Run Manager</h3>
-            <div className="row">
-              <button onClick={refreshRuns}>Refresh Runs</button>
-              <button onClick={createRun} disabled={runActionLoading}>Create Run</button>
-            </div>
-            <select
-              aria-label="run selector"
-              value={selectedRunId}
-              onChange={(e) => setSelectedRunId(e.target.value)}
-            >
-              <option value="">select run</option>
-              {runs.map((run) => (
-                <option value={run.run_id} key={run.run_id}>
-                  {run.label} ({run.status})
-                </option>
-              ))}
-            </select>
-            {selectedRun ? (
-              <p className="muted">
-                queue: q={selectedRun.queue?.queued || 0} p={selectedRun.queue?.processing || 0} d={selectedRun.queue?.done || 0}
-                {' '}e={selectedRun.queue?.error || 0}
-              </p>
-            ) : null}
-            <input
-              value={queuedPrompt}
-              onChange={(e) => setQueuedPrompt(e.target.value)}
-              placeholder="queue prompt"
-            />
-            <div className="row">
-              <button onClick={enqueueToRun} disabled={!selectedRunId || runActionLoading}>Enqueue</button>
-              <button onClick={() => controlRun('run_once')} disabled={!selectedRunId || runActionLoading}>Run Once</button>
-              <button onClick={() => controlRun('drain')} disabled={!selectedRunId || runActionLoading}>Drain</button>
-            </div>
-            <div className="row">
-              <button onClick={() => controlRun('pause')} disabled={!selectedRunId || runActionLoading}>Pause</button>
-              <button onClick={() => controlRun('resume')} disabled={!selectedRunId || runActionLoading}>Resume</button>
-              <button onClick={() => controlRun('stop')} disabled={!selectedRunId || runActionLoading}>Stop</button>
-            </div>
-          </section>
-
-          {setupMode ? (
-            <section className="setup-panel">
-              <h3>Setup Status</h3>
-              <p className="muted">LLM provider: {llmProvider}</p>
-              <p className="muted">Active route: {llmEffectiveProvider}</p>
-              <p className="muted">LLM ready: {llmReady ? 'yes' : 'needs config'}</p>
-              <p className="muted">STT engine: {sttEngine}</p>
-              <p className="muted">TTS engine: {ttsEngine}</p>
-              {runtimeCaps?.llm?.message ? <p className="error">{runtimeCaps.llm.message}</p> : null}
-              {capsError ? <p className="error">{capsError}</p> : null}
-              <div className="row">
-                <button onClick={refreshRuntimeCapabilities} disabled={capsLoading}>
-                  {capsLoading ? 'Refreshing...' : 'Refresh Setup'}
-                </button>
-                <button onClick={loadSetupState} disabled={setupLoading}>
-                  {setupLoading ? 'Loading...' : 'Load Wizard'}
-                </button>
-              </div>
-              <p className="muted">Setup Wizard step {setupStep}/3</p>
-              <div className="row">
-                <button onClick={() => setSetupStep((current) => Math.max(1, current - 1))} disabled={setupStep <= 1}>
-                  Previous
-                </button>
-                <button onClick={() => setSetupStep((current) => Math.min(3, current + 1))} disabled={setupStep >= 3}>
-                  Next
-                </button>
-              </div>
-              {setupStep === 1 ? (
-                <div>
-                  <label className="muted">LLM provider</label>
-                  <select
-                    value={setupDraft.OPENCOMMOTION_LLM_PROVIDER || 'ollama'}
-                    onChange={(e) => updateSetupDraft('OPENCOMMOTION_LLM_PROVIDER', e.target.value)}
-                  >
-                    <option value="ollama">ollama</option>
-                    <option value="openai-compatible">openai-compatible</option>
-                    <option value="codex-cli">codex-cli</option>
-                    <option value="openclaw-cli">openclaw-cli</option>
-                    <option value="openclaw-openai">openclaw-openai</option>
-                    <option value="heuristic">heuristic</option>
-                  </select>
-                  <label className="muted">Model</label>
-                  <input
-                    value={setupDraft.OPENCOMMOTION_LLM_MODEL || ''}
-                    onChange={(e) => updateSetupDraft('OPENCOMMOTION_LLM_MODEL', e.target.value)}
-                    placeholder="provider model"
-                  />
-                </div>
-              ) : null}
-              {setupStep === 2 ? (
-                <div>
-                  <label className="muted">STT engine</label>
-                  <select
-                    value={setupDraft.OPENCOMMOTION_STT_ENGINE || 'auto'}
-                    onChange={(e) => updateSetupDraft('OPENCOMMOTION_STT_ENGINE', e.target.value)}
-                  >
-                    <option value="auto">auto</option>
-                    <option value="faster-whisper">faster-whisper</option>
-                    <option value="vosk">vosk</option>
-                    <option value="openai-compatible">openai-compatible</option>
-                    <option value="text-fallback">text-fallback</option>
-                  </select>
-                  <label className="muted">TTS engine</label>
-                  <select
-                    value={setupDraft.OPENCOMMOTION_TTS_ENGINE || 'auto'}
-                    onChange={(e) => updateSetupDraft('OPENCOMMOTION_TTS_ENGINE', e.target.value)}
-                  >
-                    <option value="auto">auto</option>
-                    <option value="piper">piper</option>
-                    <option value="espeak">espeak</option>
-                    <option value="openai-compatible">openai-compatible</option>
-                    <option value="tone-fallback">tone-fallback</option>
-                  </select>
-                  <label className="muted">Strict real engines</label>
-                  <select
-                    value={setupDraft.OPENCOMMOTION_VOICE_REQUIRE_REAL_ENGINES || 'false'}
-                    onChange={(e) => updateSetupDraft('OPENCOMMOTION_VOICE_REQUIRE_REAL_ENGINES', e.target.value)}
-                  >
-                    <option value="false">false</option>
-                    <option value="true">true</option>
-                  </select>
-                </div>
-              ) : null}
-              {setupStep === 3 ? (
-                <div>
-                  <label className="muted">Auth mode</label>
-                  <select
-                    value={setupDraft.OPENCOMMOTION_AUTH_MODE || 'api-key'}
-                    onChange={(e) => updateSetupDraft('OPENCOMMOTION_AUTH_MODE', e.target.value)}
-                  >
-                    <option value="api-key">api-key</option>
-                    <option value="network-trust">network-trust</option>
-                  </select>
-                  <p className="muted">
-                    network-trust default allow list is local machine only: 127.0.0.1/32,::1/128
-                  </p>
-                  <label className="muted">API keys (comma-separated)</label>
-                  <input
-                    value={setupDraft.OPENCOMMOTION_API_KEYS || ''}
-                    onChange={(e) => updateSetupDraft('OPENCOMMOTION_API_KEYS', e.target.value)}
-                    placeholder="dev-opencommotion-key"
-                  />
-                  <label className="muted">Allowed IP/CIDR list (network-trust mode)</label>
-                  <input
-                    value={setupDraft.OPENCOMMOTION_ALLOWED_IPS || ''}
-                    onChange={(e) => updateSetupDraft('OPENCOMMOTION_ALLOWED_IPS', e.target.value)}
-                    placeholder="127.0.0.1/32,::1/128 (local-machine-only default)"
-                  />
-                </div>
-              ) : null}
-              <div className="row">
-                <button onClick={validateSetupDraft}>Validate Setup</button>
-                <button onClick={saveSetupDraft} disabled={setupSaving}>
-                  {setupSaving ? 'Saving...' : 'Save Setup'}
-                </button>
-              </div>
-              {setupMessage ? <p className="muted">{setupMessage}</p> : null}
-              {setupWarnings.map((warning) => (
-                <p className="muted" key={warning}>{warning}</p>
-              ))}
-              {setupErrors.map((error) => (
-                <p className="error" key={error}>{error}</p>
-              ))}
-              <p className="muted">CLI fallback: `opencommotion setup`</p>
-            </section>
-          ) : (
-            <section className="setup-panel setup-hidden-tip">
-              <h3>Setup Hidden In Normal Mode</h3>
-              <p className="muted">Open `/?setup=1` when you want to configure providers and auth.</p>
-            </section>
-          )}
-
-          {lastError ? <p className="error">{lastError}</p> : null}
-        </aside>
-
-        <main className="stage">
-        <section className="card">
-          <h2>Text Agent</h2>
-          <p>{text || 'No response yet.'}</p>
-        </section>
-
-        <section className="card">
-          <h2>Voice Agent</h2>
-          <p>{describeVoice(voice)}</p>
-          {toneFallback ? (
-            <div>
-              <p className="muted">Backend TTS is in tone fallback. Using browser speech instead.</p>
-              <button onClick={() => speakInBrowser(text)} disabled={!text || browserSpeaking}>
-                {browserSpeaking ? 'Speaking...' : 'Speak In Browser'}
-              </button>
-            </div>
-          ) : audioUri ? (
-            <audio controls src={`${gateway}${audioUri}`} />
-          ) : (
-            <p className="muted">No audio yet.</p>
-          )}
-        </section>
-
-        <section className="card">
+      <main className="studio-main">
+        <section className="card visual-stage-card" data-testid="visual-stage-card">
           <div className="row controls">
-            <h2>Visual Stage</h2>
+            <h2>Visual Surface</h2>
             <button onClick={() => setPlaying((v) => !v)} disabled={!patches.length}>
               {playing ? 'Pause' : 'Play'}
             </button>
@@ -1323,8 +1107,281 @@ export default function App() {
             ))}
           </svg>
         </section>
-        </main>
-      </div>
+
+        <section className="card prompt-composer" data-testid="prompt-composer">
+          <h2>Prompt Composer</h2>
+          <p className="muted">Session: {session}</p>
+          <textarea
+            aria-label="prompt input"
+            className="composer-input"
+            rows={4}
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+          />
+          <div className="row">
+            <button onClick={runTurn} disabled={running}>{running ? 'Running...' : 'Run Turn'}</button>
+            <button onClick={saveArtifact} disabled={!text}>Save</button>
+            <button onClick={() => setToolsOpen((current) => !current)}>{toolsOpen ? 'Hide Tools' : 'Open Tools'}</button>
+          </div>
+          {lastError ? <p className="error">{lastError}</p> : null}
+        </section>
+      </main>
+
+      <div
+        className={`tools-overlay ${toolsOpen ? 'open' : ''}`}
+        onClick={() => setToolsOpen(false)}
+        aria-hidden={toolsOpen ? 'false' : 'true'}
+      />
+
+      <aside className={`tools-drawer panel ${toolsOpen ? 'open' : ''}`} aria-label="tools drawer">
+        <div className="drawer-header">
+          <h2>Tools</h2>
+          <button onClick={() => setToolsOpen(false)}>Close</button>
+        </div>
+
+        <div className="control-panel">
+          {setupMode ? (
+            <section className="setup-panel">
+              <h3>Setup Status</h3>
+              <p className="muted">LLM provider: {llmProvider}</p>
+              <p className="muted">Active route: {llmEffectiveProvider}</p>
+              <p className="muted">LLM ready: {llmReady ? 'yes' : 'needs config'}</p>
+              <p className="muted">STT engine: {sttEngine}</p>
+              <p className="muted">TTS engine: {ttsEngine}</p>
+              {runtimeCaps?.llm?.message ? <p className="error">{runtimeCaps.llm.message}</p> : null}
+              {capsError ? <p className="error">{capsError}</p> : null}
+              <div className="row">
+                <button onClick={refreshRuntimeCapabilities} disabled={capsLoading}>
+                  {capsLoading ? 'Refreshing...' : 'Refresh Setup'}
+                </button>
+                <button onClick={loadSetupState} disabled={setupLoading}>
+                  {setupLoading ? 'Loading...' : 'Load Wizard'}
+                </button>
+              </div>
+              <p className="muted">Setup Wizard step {setupStep}/3</p>
+              <div className="row">
+                <button onClick={() => setSetupStep((current) => Math.max(1, current - 1))} disabled={setupStep <= 1}>
+                  Previous
+                </button>
+                <button onClick={() => setSetupStep((current) => Math.min(3, current + 1))} disabled={setupStep >= 3}>
+                  Next
+                </button>
+              </div>
+              {setupStep === 1 ? (
+                <div>
+                  <label className="muted">LLM provider</label>
+                  <select
+                    value={setupDraft.OPENCOMMOTION_LLM_PROVIDER || 'ollama'}
+                    onChange={(e) => updateSetupDraft('OPENCOMMOTION_LLM_PROVIDER', e.target.value)}
+                  >
+                    <option value="ollama">ollama</option>
+                    <option value="openai-compatible">openai-compatible</option>
+                    <option value="codex-cli">codex-cli</option>
+                    <option value="openclaw-cli">openclaw-cli</option>
+                    <option value="openclaw-openai">openclaw-openai</option>
+                    <option value="heuristic">heuristic</option>
+                  </select>
+                  <label className="muted">Model</label>
+                  <input
+                    value={setupDraft.OPENCOMMOTION_LLM_MODEL || ''}
+                    onChange={(e) => updateSetupDraft('OPENCOMMOTION_LLM_MODEL', e.target.value)}
+                    placeholder="provider model"
+                  />
+                </div>
+              ) : null}
+              {setupStep === 2 ? (
+                <div>
+                  <label className="muted">STT engine</label>
+                  <select
+                    value={setupDraft.OPENCOMMOTION_STT_ENGINE || 'auto'}
+                    onChange={(e) => updateSetupDraft('OPENCOMMOTION_STT_ENGINE', e.target.value)}
+                  >
+                    <option value="auto">auto</option>
+                    <option value="faster-whisper">faster-whisper</option>
+                    <option value="vosk">vosk</option>
+                    <option value="openai-compatible">openai-compatible</option>
+                    <option value="text-fallback">text-fallback</option>
+                  </select>
+                  <label className="muted">TTS engine</label>
+                  <select
+                    value={setupDraft.OPENCOMMOTION_TTS_ENGINE || 'auto'}
+                    onChange={(e) => updateSetupDraft('OPENCOMMOTION_TTS_ENGINE', e.target.value)}
+                  >
+                    <option value="auto">auto</option>
+                    <option value="piper">piper</option>
+                    <option value="espeak">espeak</option>
+                    <option value="openai-compatible">openai-compatible</option>
+                    <option value="tone-fallback">tone-fallback</option>
+                  </select>
+                  <label className="muted">Strict real engines</label>
+                  <select
+                    value={setupDraft.OPENCOMMOTION_VOICE_REQUIRE_REAL_ENGINES || 'false'}
+                    onChange={(e) => updateSetupDraft('OPENCOMMOTION_VOICE_REQUIRE_REAL_ENGINES', e.target.value)}
+                  >
+                    <option value="false">false</option>
+                    <option value="true">true</option>
+                  </select>
+                </div>
+              ) : null}
+              {setupStep === 3 ? (
+                <div>
+                  <label className="muted">Auth mode</label>
+                  <select
+                    value={setupDraft.OPENCOMMOTION_AUTH_MODE || 'api-key'}
+                    onChange={(e) => updateSetupDraft('OPENCOMMOTION_AUTH_MODE', e.target.value)}
+                  >
+                    <option value="api-key">api-key</option>
+                    <option value="network-trust">network-trust</option>
+                  </select>
+                  <p className="muted">
+                    network-trust default allow list is local machine only: 127.0.0.1/32,::1/128
+                  </p>
+                  <label className="muted">API keys (comma-separated)</label>
+                  <input
+                    value={setupDraft.OPENCOMMOTION_API_KEYS || ''}
+                    onChange={(e) => updateSetupDraft('OPENCOMMOTION_API_KEYS', e.target.value)}
+                    placeholder="dev-opencommotion-key"
+                  />
+                  <label className="muted">Allowed IP/CIDR list (network-trust mode)</label>
+                  <input
+                    value={setupDraft.OPENCOMMOTION_ALLOWED_IPS || ''}
+                    onChange={(e) => updateSetupDraft('OPENCOMMOTION_ALLOWED_IPS', e.target.value)}
+                    placeholder="127.0.0.1/32,::1/128 (local-machine-only default)"
+                  />
+                </div>
+              ) : null}
+              <div className="row">
+                <button onClick={validateSetupDraft}>Validate Setup</button>
+                <button onClick={saveSetupDraft} disabled={setupSaving}>
+                  {setupSaving ? 'Saving...' : 'Save Setup'}
+                </button>
+              </div>
+              {setupMessage ? <p className="muted">{setupMessage}</p> : null}
+              {setupWarnings.map((warning) => (
+                <p className="muted" key={warning}>{warning}</p>
+              ))}
+              {setupErrors.map((error) => (
+                <p className="error" key={error}>{error}</p>
+              ))}
+              <p className="muted">CLI fallback: `opencommotion setup`</p>
+            </section>
+          ) : (
+            <section className="setup-panel setup-hidden-tip">
+              <h3>Setup Hidden In Normal Mode</h3>
+              <p className="muted">Open `/?setup=1` when you want to configure providers and auth.</p>
+            </section>
+          )}
+
+          <section className="section-block run-panel">
+            <h3>Agent Run Manager</h3>
+            <div className="row">
+              <button onClick={refreshRuns}>Refresh Runs</button>
+              <button onClick={createRun} disabled={runActionLoading}>Create Run</button>
+            </div>
+            <select
+              aria-label="run selector"
+              value={selectedRunId}
+              onChange={(e) => setSelectedRunId(e.target.value)}
+            >
+              <option value="">select run</option>
+              {runs.map((run) => (
+                <option value={run.run_id} key={run.run_id}>
+                  {run.label} ({run.status})
+                </option>
+              ))}
+            </select>
+            {selectedRun ? (
+              <p className="muted">
+                queue: q={selectedRun.queue?.queued || 0} p={selectedRun.queue?.processing || 0} d={selectedRun.queue?.done || 0}
+                {' '}e={selectedRun.queue?.error || 0}
+              </p>
+            ) : null}
+            <input
+              value={queuedPrompt}
+              onChange={(e) => setQueuedPrompt(e.target.value)}
+              placeholder="queue prompt"
+            />
+            <div className="row">
+              <button onClick={enqueueToRun} disabled={!selectedRunId || runActionLoading}>Enqueue</button>
+              <button onClick={() => controlRun('run_once')} disabled={!selectedRunId || runActionLoading}>Run Once</button>
+              <button onClick={() => controlRun('drain')} disabled={!selectedRunId || runActionLoading}>Drain</button>
+            </div>
+            <div className="row">
+              <button onClick={() => controlRun('pause')} disabled={!selectedRunId || runActionLoading}>Pause</button>
+              <button onClick={() => controlRun('resume')} disabled={!selectedRunId || runActionLoading}>Resume</button>
+              <button onClick={() => controlRun('stop')} disabled={!selectedRunId || runActionLoading}>Stop</button>
+            </div>
+          </section>
+
+          <section className="section-block voice-panel">
+            <h3>Voice Input</h3>
+            <input
+              aria-label="voice file"
+              type="file"
+              accept="audio/*"
+              onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
+            />
+            <button onClick={transcribeSelectedAudio} disabled={!audioFile || transcribing}>
+              {transcribing ? 'Transcribing...' : 'Transcribe Audio'}
+            </button>
+            <p className="muted">{transcript || 'No transcript yet.'}</p>
+          </section>
+
+          <section className="section-block">
+            <h3>Artifact Search</h3>
+            <div className="row">
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="search artifacts"
+              />
+              <select
+                aria-label="search mode"
+                value={searchMode}
+                onChange={(e) => setSearchMode(e.target.value as 'lexical' | 'semantic' | 'hybrid')}
+              >
+                <option value="hybrid">hybrid</option>
+                <option value="semantic">semantic</option>
+                <option value="lexical">lexical</option>
+              </select>
+              <button onClick={searchArtifacts}>Search</button>
+            </div>
+            <ul className="results">
+              {results.map((r) => (
+                <li key={r.artifact_id}>
+                  <div>{r.title}</div>
+                  <small>
+                    {r.match_mode || 'n/a'}
+                    {typeof r.score === 'number' ? ` · ${r.score.toFixed(3)}` : ''}
+                  </small>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="section-block">
+            <h3>Text Agent</h3>
+            <p>{text || 'No response yet.'}</p>
+          </section>
+
+          <section className="section-block">
+            <h3>Voice Agent</h3>
+            <p>{describeVoice(voice)}</p>
+            {toneFallback ? (
+              <div>
+                <p className="muted">Backend TTS is in tone fallback. Using browser speech instead.</p>
+                <button onClick={() => speakInBrowser(text)} disabled={!text || browserSpeaking}>
+                  {browserSpeaking ? 'Speaking...' : 'Speak In Browser'}
+                </button>
+              </div>
+            ) : audioUri ? (
+              <audio controls src={`${gateway}${audioUri}`} />
+            ) : (
+              <p className="muted">No audio yet.</p>
+            )}
+          </section>
+        </div>
+      </aside>
     </div>
   )
 }

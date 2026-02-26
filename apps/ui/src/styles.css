@@ -2,7 +2,6 @@
   --bg-ink: #0f172a;
   --bg-navy: #172554;
   --bg-cobalt: #1e3a8a;
-  --bg-cyan: #0891b2;
   --panel: rgba(5, 15, 39, 0.78);
   --panel-strong: rgba(2, 10, 29, 0.9);
   --border: rgba(148, 163, 184, 0.24);
@@ -36,9 +35,10 @@ body {
 }
 
 .app-shell {
+  position: relative;
   display: grid;
-  gap: 16px;
-  padding: 18px;
+  gap: 12px;
+  padding: 12px;
   min-height: 100vh;
 }
 
@@ -47,7 +47,7 @@ body {
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  padding: 18px;
+  padding: 14px 16px;
 }
 
 .eyebrow {
@@ -59,15 +59,21 @@ body {
 }
 
 .brand-bar h1 {
-  margin: 6px 0;
-  font-size: 32px;
+  margin: 5px 0;
+  font-size: clamp(24px, 3.2vw, 32px);
   line-height: 1.05;
 }
 
 .lead {
   margin: 0;
-  max-width: 620px;
+  max-width: 640px;
   color: var(--text-muted);
+}
+
+.brand-right {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
 }
 
 .brand-badges {
@@ -96,10 +102,14 @@ body {
   color: #fde68a;
 }
 
-.layout {
+.tools-toggle {
+  min-width: 110px;
+}
+
+.studio-main {
   display: grid;
-  grid-template-columns: 380px 1fr;
-  gap: 16px;
+  gap: 10px;
+  align-content: start;
 }
 
 .panel,
@@ -112,14 +122,89 @@ body {
 }
 
 .panel {
-  padding: 14px;
-  max-height: calc(100vh - 170px);
-  overflow-y: auto;
+  padding: 12px;
 }
 
 .card {
-  padding: 15px;
-  animation: stage-up 260ms ease both;
+  padding: 12px;
+  animation: stage-up 220ms ease both;
+}
+
+.visual-stage-card {
+  min-height: clamp(260px, 45vh, 520px);
+}
+
+.visual-canvas {
+  width: 100%;
+  height: clamp(260px, 45vh, 520px);
+  border-radius: 14px;
+  border: 1px solid rgba(125, 211, 252, 0.33);
+  background: rgba(2, 6, 23, 0.35);
+}
+
+.prompt-composer {
+  max-height: clamp(140px, 22vh, 260px);
+}
+
+.composer-input {
+  min-height: 86px;
+  max-height: 132px;
+  margin-bottom: 8px;
+}
+
+.tools-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.52);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+  z-index: 30;
+}
+
+.tools-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tools-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: min(460px, 96vw);
+  border-radius: 0;
+  border-left: 1px solid rgba(148, 163, 184, 0.3);
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateX(100%);
+  transition: transform 220ms ease, visibility 0ms linear 220ms;
+  z-index: 40;
+  overflow-y: auto;
+}
+
+.tools-drawer.open {
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(0);
+  transition: transform 220ms ease, visibility 0ms linear 0ms;
+}
+
+.drawer-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: -12px -12px 12px -12px;
+  padding: 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(2, 10, 29, 0.95);
+}
+
+.drawer-header h2 {
+  margin: 0;
 }
 
 .control-panel {
@@ -214,25 +299,12 @@ button:disabled {
   border-style: solid;
 }
 
-.stage {
-  display: grid;
-  gap: 12px;
-}
-
 .controls {
   align-items: center;
 }
 
 .controls h2 {
   margin-right: auto;
-}
-
-.visual-canvas {
-  width: 100%;
-  max-height: 520px;
-  border-radius: 14px;
-  border: 1px solid rgba(125, 211, 252, 0.33);
-  background: rgba(2, 6, 23, 0.35);
 }
 
 .voice-panel {
@@ -277,29 +349,34 @@ button:disabled {
   }
 }
 
-@media (max-width: 1120px) {
-  .layout {
-    grid-template-columns: 1fr;
-  }
-
-  .panel {
-    max-height: unset;
-  }
-}
-
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .app-shell {
-    padding: 12px;
-    gap: 12px;
+    padding: 10px;
   }
 
   .brand-bar {
     flex-direction: column;
     align-items: flex-start;
-    padding: 14px;
   }
 
-  .brand-bar h1 {
-    font-size: 28px;
+  .brand-right {
+    justify-items: start;
+    width: 100%;
+  }
+
+  .brand-badges {
+    justify-content: flex-start;
+  }
+
+  .visual-stage-card {
+    min-height: clamp(260px, 40vh, 460px);
+  }
+
+  .visual-canvas {
+    height: clamp(260px, 40vh, 460px);
+  }
+
+  .prompt-composer {
+    max-height: none;
   }
 }

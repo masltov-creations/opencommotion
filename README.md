@@ -2,6 +2,8 @@
 
 OpenCommotion is a prompt-to-scene engine: it takes a prompt and produces synchronized text, voice, and animated visuals in one UI.
 
+Imagine having an AI agent that can both explain and show you an answer at the same time. That is OpenCommotion.
+
 Project name: `OpenCommotion`.
 
 If Python and a storyboard had a very productive meeting, this would be the output.
