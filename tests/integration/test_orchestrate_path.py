@@ -67,3 +67,18 @@ def test_orchestrate_cow_moon_and_day_night_scenarios() -> None:
     day_night_kinds = {row["kind"] for row in day_night.json()["visual_strokes"]}
     assert "setEnvironmentMood" in day_night_kinds
     assert "sceneMorph" in day_night_kinds
+
+
+def test_orchestrate_draw_box_prompt_generates_shape_scene() -> None:
+    c = TestClient(app)
+    res = c.post(
+        "/v1/orchestrate",
+        json={
+            "session_id": "shape-box",
+            "prompt": "draw a box",
+        },
+    )
+    assert res.status_code == 200
+    kinds = {row["kind"] for row in res.json()["visual_strokes"]}
+    assert "spawnSceneActor" in kinds
+    assert "spawnCharacter" not in kinds

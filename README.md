@@ -27,17 +27,21 @@ Prereqs:
 
 One-line bootstrap (clone/update + setup):
 
-Linux/macOS/Git Bash:
+Linux/macOS/Git Bash/WSL shell:
 
 ```bash
 mkdir -p /home/$USER/apps && ( [ -d /home/$USER/apps/opencommotion/.git ] && git -C /home/$USER/apps/opencommotion pull --ff-only origin main || git clone https://github.com/masltov-creations/OpenCommotion /home/$USER/apps/opencommotion ) && cd /home/$USER/apps/opencommotion && bash scripts/setup.sh
 ```
 
-PowerShell (via WSL):
+PowerShell (calls into WSL):
 
 ```powershell
 wsl bash -lc 'mkdir -p ~/apps && ( [ -d ~/apps/opencommotion/.git ] && git -C ~/apps/opencommotion pull --ff-only origin main || git clone https://github.com/masltov-creations/OpenCommotion ~/apps/opencommotion ) && cd ~/apps/opencommotion && bash scripts/setup.sh'
 ```
+
+Important shell rule:
+- If your prompt looks like `mashuri@...$`, you are already in WSL. Run Linux commands directly and do not prefix with `wsl`.
+- Only use `wsl bash -lc '...'` from Windows PowerShell/CMD.
 
 That command installs dependencies, starts the app, and opens the browser (or asks first in interactive shells).
 If browser auto-open is blocked by your environment, open manually:
@@ -228,17 +232,19 @@ Visual-intelligence scenario requirements and certification matrix:
 
 1. Bootstrap repo and dependencies:
 
-Linux/macOS/Git Bash:
+Linux/macOS/Git Bash/WSL shell:
 
 ```bash
 mkdir -p /home/$USER/apps && ( [ -d /home/$USER/apps/opencommotion/.git ] && git -C /home/$USER/apps/opencommotion pull --ff-only origin main || git clone https://github.com/masltov-creations/OpenCommotion /home/$USER/apps/opencommotion ) && cd /home/$USER/apps/opencommotion && bash scripts/setup.sh
 ```
 
-PowerShell (via WSL):
+PowerShell (calls into WSL):
 
 ```powershell
 wsl bash -lc 'mkdir -p ~/apps && ( [ -d ~/apps/opencommotion/.git ] && git -C ~/apps/opencommotion pull --ff-only origin main || git clone https://github.com/masltov-creations/OpenCommotion ~/apps/opencommotion ) && cd ~/apps/opencommotion && bash scripts/setup.sh'
 ```
+
+If you are already in a WSL shell (`user@host:~$`), do not run the `wsl ...` wrapper.
 
 2. Authenticate Codex CLI once:
 

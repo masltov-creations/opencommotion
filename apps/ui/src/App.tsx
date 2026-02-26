@@ -182,6 +182,17 @@ function progressivePolyline(points: number[][] | undefined, progress: number): 
   return points.slice(0, required)
 }
 
+function styleNumber(style: Record<string, unknown>, key: string, fallback: number): number {
+  const raw = style[key]
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function styleString(style: Record<string, unknown>, key: string, fallback: string): string {
+  const raw = style[key]
+  return typeof raw === 'string' && raw.trim() ? raw : fallback
+}
+
 export default function App() {
   const [prompt, setPrompt] = useState('show a moonwalk with adoption chart and pie')
   const [text, setText] = useState('')
@@ -969,6 +980,7 @@ export default function App() {
             {actorEntries.map(([id, actor]) => {
               const x = actor.x ?? 140
               const y = actor.y ?? 170
+              const actorStyle = (actor.style || {}) as Record<string, unknown>
 
               if (actor.type === 'character') {
                 return (
@@ -999,6 +1011,17 @@ export default function App() {
               }
 
               if (actor.type === 'bowl') {
+                const bowlShape = styleString(actorStyle, 'shape', 'round')
+                if (bowlShape === 'square') {
+                  return (
+                    <g key={id}>
+                      <rect x={x - 92} y={y - 82} width="184" height="164" rx="18" fill={renderMode === '3d' ? '#dbeafe66' : '#bfdbfe44'} />
+                      <rect x={x - 92} y={y - 82} width="184" height="164" rx="18" fill="none" stroke="#e0f2fe" strokeWidth="5" />
+                      <rect x={x - 72} y={y - 66} width="144" height="14" rx="6" fill="#93c5fd55" />
+                      <ellipse cx={x} cy={y + 92} rx="110" ry="18" fill="#0f172a55" />
+                    </g>
+                  )
+                }
                 return (
                   <g key={id}>
                     <ellipse cx={x} cy={y + 46} rx="118" ry="18" fill="#0f172a55" />
@@ -1011,10 +1034,12 @@ export default function App() {
 
               if (actor.type === 'fish') {
                 const pos = actorPathPosition(actor, playbackMs, 310, 205)
+                const fishFill = styleString(actorStyle, 'fill', '#f59e0b')
+                const fishTail = styleString(actorStyle, 'tail', fishFill)
                 return (
                   <g key={id}>
-                    <ellipse cx={pos.x} cy={pos.y} rx="24" ry="13" fill="#f59e0b" />
-                    <polygon points={`${pos.x - 23},${pos.y} ${pos.x - 41},${pos.y - 11} ${pos.x - 41},${pos.y + 11}`} fill="#fb923c" />
+                    <ellipse cx={pos.x} cy={pos.y} rx="24" ry="13" fill={fishFill} />
+                    <polygon points={`${pos.x - 23},${pos.y} ${pos.x - 41},${pos.y - 11} ${pos.x - 41},${pos.y + 11}`} fill={fishTail} />
                     <circle cx={pos.x + 11} cy={pos.y - 3} r="2.4" fill="#111827" />
                   </g>
                 )
@@ -1054,6 +1079,54 @@ export default function App() {
                     <path d={`M${x + 4},${y - 8} C${x + 10 + sway},${y - 42} ${x - 8 + sway},${y - 76} ${x + 10 + sway},${y - 110}`} stroke="#22c55e" strokeWidth="3" fill="none" />
                   </g>
                 )
+              }
+
+              if (actor.type === 'box' || actor.type === 'square' || actor.type === 'rectangle') {
+                const width = styleNumber(actorStyle, 'width', actor.type === 'rectangle' ? 140 : 96)
+                const height = styleNumber(actorStyle, 'height', actor.type === 'rectangle' ? 84 : width)
+                const fill = styleString(actorStyle, 'fill', '#22d3ee')
+                const stroke = styleString(actorStyle, 'stroke', '#e2e8f0')
+                const lineWidth = styleNumber(actorStyle, 'line_width', 4)
+                return (
+                  <rect
+                    key={id}
+                    x={x - width / 2}
+                    y={y - height / 2}
+                    width={width}
+                    height={height}
+                    fill={fill}
+                    stroke={stroke}
+                    strokeWidth={lineWidth}
+                    rx={actor.type === 'square' ? 8 : 10}
+                  />
+                )
+              }
+
+              if (actor.type === 'circle' || actor.type === 'dot') {
+                const fill = styleString(actorStyle, 'fill', '#22d3ee')
+                const stroke = styleString(actorStyle, 'stroke', '#e2e8f0')
+                const lineWidth = styleNumber(actorStyle, 'line_width', 3)
+                const radius = styleNumber(actorStyle, 'radius', actor.type === 'dot' ? 8 : 44)
+                return <circle key={id} cx={x} cy={y} r={radius} fill={fill} stroke={stroke} strokeWidth={lineWidth} />
+              }
+
+              if (actor.type === 'line') {
+                const x2 = styleNumber(actorStyle, 'x2', x + 180)
+                const y2 = styleNumber(actorStyle, 'y2', y)
+                const stroke = styleString(actorStyle, 'stroke', '#22d3ee')
+                const lineWidth = styleNumber(actorStyle, 'line_width', 4)
+                return <line key={id} x1={x} y1={y} x2={x2} y2={y2} stroke={stroke} strokeWidth={lineWidth} />
+              }
+
+              if (actor.type === 'triangle') {
+                const size = styleNumber(actorStyle, 'size', 100)
+                const fill = styleString(actorStyle, 'fill', '#22d3ee')
+                const stroke = styleString(actorStyle, 'stroke', '#e2e8f0')
+                const lineWidth = styleNumber(actorStyle, 'line_width', 4)
+                const p1 = `${x},${y - size / 2}`
+                const p2 = `${x - size / 2},${y + size / 2}`
+                const p3 = `${x + size / 2},${y + size / 2}`
+                return <polygon key={id} points={`${p1} ${p2} ${p3}`} fill={fill} stroke={stroke} strokeWidth={lineWidth} />
               }
 
               return null

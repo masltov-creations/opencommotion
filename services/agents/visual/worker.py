@@ -1,9 +1,199 @@
 from __future__ import annotations
 
+import re
+
+COLOR_MAP = {
+    "black": "#111827",
+    "white": "#f8fafc",
+    "red": "#ef4444",
+    "orange": "#f97316",
+    "yellow": "#facc15",
+    "green": "#22c55e",
+    "blue": "#3b82f6",
+    "purple": "#a855f7",
+    "pink": "#ec4899",
+    "teal": "#14b8a6",
+    "cyan": "#22d3ee",
+    "gray": "#9ca3af",
+    "grey": "#9ca3af",
+    "brown": "#8b5e3c",
+}
+
+DRAW_VERBS = ("draw", "sketch", "paint", "render", "illustrate", "show", "create")
+SHAPE_ALIASES = {
+    "box": "box",
+    "square": "square",
+    "rectangle": "rectangle",
+    "rect": "rectangle",
+    "circle": "circle",
+    "dot": "dot",
+    "line": "line",
+    "triangle": "triangle",
+}
+
+
+def _has_word(prompt: str, word: str) -> bool:
+    return re.search(rf"\b{re.escape(word)}\b", prompt) is not None
+
+
+def _extract_color(prompt: str, default: str = "#22d3ee") -> tuple[str, str]:
+    for name, hex_color in COLOR_MAP.items():
+        if _has_word(prompt, name):
+            return name, hex_color
+    return "default", default
+
+
+def _extract_shape(prompt: str) -> str:
+    for token, shape in SHAPE_ALIASES.items():
+        if _has_word(prompt, token):
+            return shape
+    return ""
+
+
+def _draw_intent(prompt: str) -> bool:
+    return any(_has_word(prompt, verb) for verb in DRAW_VERBS)
+
+
+def _size_hint(prompt: str, fallback: int = 96) -> int:
+    if "tiny" in prompt or "small" in prompt:
+        fallback = 56
+    elif "large" in prompt or "big" in prompt:
+        fallback = 140
+
+    m = re.search(r"\b(\d{2,3})\s*(?:px|pixel|pixels)\b", prompt)
+    if m:
+        try:
+            fallback = int(m.group(1))
+        except ValueError:
+            pass
+    return max(20, min(260, fallback))
+
+
+def _shape_dimensions(prompt: str, shape: str) -> tuple[int, int]:
+    size = _size_hint(prompt)
+    width = size
+    height = size
+    if shape == "rectangle":
+        width = int(size * 1.5)
+        height = int(size * 0.85)
+    if shape in {"box", "square"}:
+        width = size
+        height = size
+    if "wide" in prompt:
+        width = int(width * 1.3)
+    if "tall" in prompt:
+        height = int(height * 1.3)
+    return max(20, width), max(20, height)
+
+
+def _motion_path(prompt: str, x: int, y: int) -> list[list[int]] | None:
+    if "left to right" in prompt:
+        return [[x - 140, y], [x + 140, y]]
+    if "right to left" in prompt:
+        return [[x + 140, y], [x - 140, y]]
+    if "up and down" in prompt or "top to bottom" in prompt:
+        return [[x, y - 90], [x, y + 90], [x, y - 90]]
+    if "orbit" in prompt:
+        return [[x + 80, y], [x, y - 80], [x - 80, y], [x, y + 80], [x + 80, y]]
+    return None
+
+
+def _build_shape_strokes(prompt: str, mode: str) -> list[dict]:
+    shape = _extract_shape(prompt)
+    if not shape:
+        return []
+    color_name, color_hex = _extract_color(prompt)
+    width, height = _shape_dimensions(prompt, shape)
+    x, y = 260, 200
+    actor_id = f"{shape}_1"
+
+    style: dict = {
+        "fill": color_hex,
+        "stroke": "#e2e8f0",
+        "line_width": max(2, int(width * 0.06)),
+        "width": width,
+        "height": height,
+        "color_name": color_name,
+    }
+
+    if shape in {"circle", "dot"}:
+        style = {
+            "fill": color_hex,
+            "stroke": "#e2e8f0",
+            "line_width": max(2, int(width * 0.05)),
+            "radius": max(8, int(width * (0.5 if shape == "circle" else 0.14))),
+            "color_name": color_name,
+        }
+    elif shape == "line":
+        style = {
+            "stroke": color_hex,
+            "line_width": max(2, int(width * 0.04)),
+            "x2": x + 180,
+            "y2": y,
+            "color_name": color_name,
+        }
+    elif shape == "triangle":
+        style = {
+            "fill": color_hex,
+            "stroke": "#e2e8f0",
+            "line_width": max(2, int(width * 0.05)),
+            "size": width,
+            "color_name": color_name,
+        }
+
+    strokes: list[dict] = [
+        {
+            "stroke_id": "render-mode-shape",
+            "kind": "setRenderMode",
+            "params": {"mode": mode},
+            "timing": {"start_ms": 0, "duration_ms": 80, "easing": "linear"},
+        },
+        {
+            "stroke_id": f"shape-{shape}",
+            "kind": "spawnSceneActor",
+            "params": {
+                "actor_id": actor_id,
+                "actor_type": shape,
+                "x": x,
+                "y": y,
+                "style": style,
+            },
+            "timing": {"start_ms": 60, "duration_ms": 220, "easing": "easeOutCubic"},
+        },
+        {
+            "stroke_id": "shape-note",
+            "kind": "annotateInsight",
+            "params": {"text": f"Drawing a {color_name if color_name != 'default' else ''} {shape}.".strip()},
+            "timing": {"start_ms": 120, "duration_ms": 160, "easing": "linear"},
+        },
+    ]
+
+    motion = _motion_path(prompt, x, y)
+    if motion:
+        strokes.append(
+            {
+                "stroke_id": f"shape-motion-{shape}",
+                "kind": "setActorMotion",
+                "params": {
+                    "actor_id": actor_id,
+                    "motion": {
+                        "name": "path-motion",
+                        "loop": True,
+                        "duration_ms": 3200,
+                        "path_points": motion,
+                    },
+                },
+                "timing": {"start_ms": 220, "duration_ms": 3200, "easing": "easeInOutSine"},
+            }
+        )
+    return strokes
+
 
 def _wants_fish_scene(prompt: str) -> bool:
     keys = ("fish bowl", "fishbowl", "goldfish", "fish swimming", "bubbles", "caustic", "aquarium")
-    return any(k in prompt for k in keys)
+    if any(k in prompt for k in keys):
+        return True
+    return _has_word(prompt, "fish") and (_has_word(prompt, "bowl") or _has_word(prompt, "aquarium"))
 
 
 def _render_mode(prompt: str) -> str:
@@ -21,16 +211,14 @@ def _wants_market_growth_scene(prompt: str) -> bool:
 
 
 def _wants_day_night_scene(prompt: str) -> bool:
-    p = prompt
-    if "day-to-night" in p or "day to night" in p:
+    if "day-to-night" in prompt or "day to night" in prompt:
         return True
-    return "day" in p and "night" in p
+    return _has_word(prompt, "day") and _has_word(prompt, "night")
 
 
 def _wants_cow_moon_lyric_scene(prompt: str) -> bool:
-    p = prompt
-    has_cow_moon = "cow" in p and "moon" in p
-    has_lyric_intent = any(key in p for key in ("lyric", "lyrics", "bouncing ball", "phrase", "word"))
+    has_cow_moon = _has_word(prompt, "cow") and _has_word(prompt, "moon")
+    has_lyric_intent = any(key in prompt for key in ("lyric", "lyrics", "bouncing ball", "phrase", "word"))
     return has_cow_moon and has_lyric_intent
 
 
@@ -40,23 +228,24 @@ def generate_visual_strokes(prompt: str) -> list[dict]:
     day_night_scene = _wants_day_night_scene(p)
     cow_moon_lyric_scene = _wants_cow_moon_lyric_scene(p)
     mode = _render_mode(p)
-    strokes: list[dict] = [
-        {
-            "stroke_id": "spawn-guide",
-            "kind": "spawnCharacter",
-            "params": {"actor_id": "guide", "x": 180, "y": 190},
-            "timing": {"start_ms": 0, "duration_ms": 200, "easing": "easeOutCubic"},
-        }
-    ]
+    strokes: list[dict] = []
 
     if "moonwalk" in p:
-        strokes.append(
-            {
-                "stroke_id": "moonwalk-guide",
-                "kind": "animateMoonwalk",
-                "params": {"actor_id": "guide"},
-                "timing": {"start_ms": 250, "duration_ms": 1300, "easing": "easeInOutCubic"},
-            }
+        strokes.extend(
+            [
+                {
+                    "stroke_id": "spawn-guide",
+                    "kind": "spawnCharacter",
+                    "params": {"actor_id": "guide", "x": 180, "y": 190},
+                    "timing": {"start_ms": 0, "duration_ms": 200, "easing": "easeOutCubic"},
+                },
+                {
+                    "stroke_id": "moonwalk-guide",
+                    "kind": "animateMoonwalk",
+                    "params": {"actor_id": "guide"},
+                    "timing": {"start_ms": 250, "duration_ms": 1300, "easing": "easeInOutCubic"},
+                },
+            ]
         )
 
     if "globe" in p or "ufo" in p:
@@ -229,7 +418,8 @@ def generate_visual_strokes(prompt: str) -> list[dict]:
         )
 
     if _wants_fish_scene(p):
-        mode = _render_mode(p)
+        bowl_shape = "square" if any(term in p for term in ("square", "box", "cube", "rectangular")) else "round"
+        color_name, fish_color = _extract_color(p, default="#f59e0b")
         strokes.extend(
             [
                 {
@@ -246,7 +436,7 @@ def generate_visual_strokes(prompt: str) -> list[dict]:
                         "actor_type": "bowl",
                         "x": 330,
                         "y": 205,
-                        "style": {"glass": "clear", "desk_anchor": True},
+                        "style": {"glass": "clear", "desk_anchor": True, "shape": bowl_shape},
                     },
                     "timing": {"start_ms": 40, "duration_ms": 240, "easing": "easeOutCubic"},
                 },
@@ -258,7 +448,7 @@ def generate_visual_strokes(prompt: str) -> list[dict]:
                         "actor_type": "fish",
                         "x": 310,
                         "y": 205,
-                        "style": {"species": "goldfish", "palette": "warm"},
+                        "style": {"species": "goldfish", "palette": color_name, "fill": fish_color},
                     },
                     "timing": {"start_ms": 120, "duration_ms": 260, "easing": "easeOutCubic"},
                 },
@@ -365,12 +555,42 @@ def generate_visual_strokes(prompt: str) -> list[dict]:
                 ]
             )
 
-    strokes.append(
-        {
-            "stroke_id": "insight",
-            "kind": "annotateInsight",
-            "params": {"text": "Synchronized visual cue active."},
-            "timing": {"start_ms": 150, "duration_ms": 150, "easing": "linear"},
-        }
-    )
+    if not strokes:
+        shape_strokes = _build_shape_strokes(p, mode)
+        if shape_strokes:
+            strokes.extend(shape_strokes)
+
+    if not strokes and _draw_intent(p):
+        strokes.extend(
+            [
+                {
+                    "stroke_id": "render-mode-default-draw",
+                    "kind": "setRenderMode",
+                    "params": {"mode": mode},
+                    "timing": {"start_ms": 0, "duration_ms": 80, "easing": "linear"},
+                },
+                {
+                    "stroke_id": "fallback-dot",
+                    "kind": "spawnSceneActor",
+                    "params": {
+                        "actor_id": "dot_1",
+                        "actor_type": "dot",
+                        "x": 250,
+                        "y": 190,
+                        "style": {"fill": "#22d3ee", "radius": 8},
+                    },
+                    "timing": {"start_ms": 50, "duration_ms": 180, "easing": "easeOutCubic"},
+                },
+            ]
+        )
+
+    if strokes:
+        strokes.append(
+            {
+                "stroke_id": "insight",
+                "kind": "annotateInsight",
+                "params": {"text": "Synchronized visual cue active."},
+                "timing": {"start_ms": 150, "duration_ms": 150, "easing": "linear"},
+            }
+        )
     return strokes

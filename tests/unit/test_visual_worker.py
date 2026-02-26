@@ -44,3 +44,21 @@ def test_day_night_prompt_includes_environment_and_transition() -> None:
     kinds = {row["kind"] for row in strokes}
     assert "setEnvironmentMood" in kinds
     assert "sceneMorph" in kinds
+
+
+def test_draw_box_prompt_generates_shape_actor_without_v1_guide_default() -> None:
+    strokes = generate_visual_strokes("draw a box")
+    kinds = {row["kind"] for row in strokes}
+    assert "spawnSceneActor" in kinds
+    assert "spawnCharacter" not in kinds
+    spawned = [row for row in strokes if row["kind"] == "spawnSceneActor"]
+    assert any(row.get("params", {}).get("actor_type") in {"box", "square", "rectangle"} for row in spawned)
+
+
+def test_black_fish_square_bowl_prompt_uses_prompt_style() -> None:
+    strokes = generate_visual_strokes("show a black fish in a square bowl")
+    spawned = [row for row in strokes if row["kind"] == "spawnSceneActor"]
+    bowl = next(row for row in spawned if row.get("params", {}).get("actor_id") == "fish_bowl")
+    fish = next(row for row in spawned if row.get("params", {}).get("actor_id") == "goldfish")
+    assert bowl["params"]["style"]["shape"] == "square"
+    assert fish["params"]["style"]["fill"] == "#111827"
