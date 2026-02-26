@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "opencommotion/types/scene_patch_envelope_v2.schema.json",
+  "title": "ScenePatchEnvelopeV2",
+  "type": "object",
+  "required": ["version", "scene_id", "turn_id", "base_revision", "revision", "patches"],
+  "properties": {
+    "version": { "type": "string", "const": "v2" },
+    "session_id": { "type": "string" },
+    "scene_id": { "type": "string" },
+    "turn_id": { "type": "string" },
+    "base_revision": { "type": "integer", "minimum": 0 },
+    "revision": { "type": "integer", "minimum": 0 },
+    "text": { "type": "string" },
+    "voice": { "type": "object", "additionalProperties": true },
+    "timeline": {
+      "type": "object",
+      "properties": {
+        "duration_ms": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "patches": {
+      "type": "array",
+      "items": { "$ref": "scene_patch_op_v2.schema.json" }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "degrade_notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "explanation_text": { "type": "string" },
+    "quality_report": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "legacy_visual_patches": {
+      "type": "array",
+      "items": { "$ref": "scene_patch_v1.schema.json" }
+    }
+  },
+  "additionalProperties": false
+}

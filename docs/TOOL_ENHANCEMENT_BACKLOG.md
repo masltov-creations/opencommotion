@@ -1,6 +1,6 @@
 # Tool Enhancement Backlog
 
-Updated: 2026-02-25
+Updated: 2026-02-26
 
 Purpose:
 - Track discovered tool gaps that block or degrade baseline requirements.
@@ -10,6 +10,11 @@ How to use:
 1. Add a new row when a requirement is unmet due to tool limitation.
 2. Include concrete impact and acceptance criteria.
 3. Mark status only when tests/evidence prove closure.
+4. Mirror high-severity status changes in `PROJECT.md` (`Active tasks` + `Change log`) in the same session.
+
+Sync rule:
+- `PROJECT.md` is the source-of-truth project plan.
+- This backlog is a supporting ledger; status claims here must not get ahead of `PROJECT.md`.
 
 Statuses:
 - `open`: identified, not yet implemented.

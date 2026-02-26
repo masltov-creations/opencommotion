@@ -1,7 +1,7 @@
 {
   "name": "opencommotion",
   "displayName": "OpenCommotion",
-  "version": "0.7.0",
+  "version": "0.7.2",
   "private": true,
   "workspaces": [
     "apps/ui"

@@ -60,10 +60,10 @@ def main() -> None:
         turn = _request_json(
             client,
             "POST",
-            f"{gateway}/v1/orchestrate",
+            f"{gateway}/v2/orchestrate",
             "orchestrate",
             headers=headers,
-            json={"session_id": args.session, "prompt": args.prompt},
+            json={"session_id": args.session, "scene_id": f"scene-{args.session}", "base_revision": 0, "prompt": args.prompt},
         )
 
     segments = turn.get("voice", {}).get("segments", [])
@@ -71,7 +71,7 @@ def main() -> None:
         "provider": "codex-cli",
         "session_id": turn.get("session_id"),
         "turn_id": turn.get("turn_id"),
-        "patch_count": len(turn.get("visual_patches", [])),
+        "patch_count": len(turn.get("patches", []) or turn.get("legacy_visual_patches", []) or turn.get("visual_patches", [])),
         "voice_uri": segments[0].get("audio_uri", "") if segments else "",
         "text": turn.get("text", ""),
     }

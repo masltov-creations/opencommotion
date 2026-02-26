@@ -51,3 +51,42 @@ def test_protocol_validator_resolves_refs_for_event_schema() -> None:
             },
         },
     )
+
+
+def test_protocol_validator_accepts_runtime_capabilities_v2_with_recipe_refs() -> None:
+    validator = ProtocolValidator()
+    validator.validate(
+        "types/runtime_capabilities_v2.schema.json",
+        {
+            "version": "v2",
+            "renderers": ["three-webgl"],
+            "features": {
+                "shaderRecipes": True,
+                "gltfImport": False,
+                "pbr": True,
+                "particles": True,
+                "physics": False,
+            },
+            "limits": {
+                "max_entities_2d": 400,
+                "max_entities_3d": 250,
+                "max_patch_ops_per_turn": 120,
+                "max_materials": 128,
+                "max_behaviors": 256,
+                "max_texture_dimension": 2048,
+                "max_texture_memory_mb": 128,
+                "max_uniform_update_hz": 30,
+            },
+            "shader_recipes": [
+                {
+                    "recipe_id": "water_volume_tint",
+                    "version": "1.0.0",
+                    "backend_targets": ["three-webgl"],
+                    "uniform_schema": {
+                        "density": {"type": "number", "default": 0.36, "min": 0.0, "max": 1.0, "max_update_hz": 30.0}
+                    },
+                    "texture_slots": [],
+                }
+            ],
+        },
+    )

@@ -20,7 +20,12 @@ Use a two-channel model for all clients:
 - Event channel (WebSocket): subscribe to authoritative realtime event envelopes.
 
 Required endpoints:
-- `POST /v1/orchestrate`
+- `POST /v2/orchestrate`
+- `GET /v2/runtime/capabilities`
+- `WS /v2/events/ws`
+- `GET /v2/scenes/{scene_id}`
+- `POST /v2/scenes/{scene_id}/snapshot`
+- `POST /v2/scenes/{scene_id}/restore`
 - `POST /v1/agent-runs`
 - `GET /v1/agent-runs`
 - `GET /v1/agent-runs/{run_id}`
@@ -33,13 +38,11 @@ Required endpoints:
 - `POST /v1/voice/transcribe`
 - `POST /v1/voice/synthesize`
 - `GET /v1/voice/capabilities`
-- `GET /v1/runtime/capabilities`
 - `POST /v1/artifacts/save`
 - `GET /v1/artifacts/search`
 - `POST /v1/artifacts/recall/{artifact_id}`
 - `POST /v1/artifacts/pin/{artifact_id}`
 - `POST /v1/artifacts/archive/{artifact_id}`
-- `WS /v1/events/ws`
 
 Auth defaults:
 - Send `x-api-key` for REST requests.
@@ -48,9 +51,9 @@ Auth defaults:
 ## 3) Quick-start lane (agents)
 
 1. Check `GET /health` on gateway and orchestrator.
-2. Check `GET /v1/runtime/capabilities` before first turn to confirm LLM/STT/TTS readiness.
+2. Check `GET /v2/runtime/capabilities` before first turn to confirm LLM/STT/TTS readiness.
 3. Open websocket and send heartbeat `ping` every 10s.
-4. Submit `POST /v1/orchestrate` with `session_id` + prompt.
+4. Submit `POST /v2/orchestrate` with `session_id` + prompt.
 5. Correlate websocket events by `session_id + turn_id`.
 6. Execute output:
 - read `payload.text`
@@ -59,6 +62,9 @@ Auth defaults:
 - if present, check `payload.quality_report` for scenario-specific compatibility gates (for market-growth graph flows)
 7. Optionally save and search artifacts.
 8. For autonomous backend loops, create run via `/v1/agent-runs`, enqueue prompts, and control run state.
+
+Compatibility note:
+- `/v1/orchestrate` and `/v1/events/ws` are compatibility shims for one release and emit deprecation headers.
 
 Recommended script:
 - `scripts/agent_examples/robust_turn_client.py`

@@ -31,7 +31,8 @@ async def run_agent_flow(
     timeout_s: float,
 ) -> TurnResult:
     gateway = gateway.rstrip("/")
-    ws_url = gateway.replace("http://", "ws://").replace("https://", "wss://") + "/v1/events/ws"
+    scene_id = f"scene-{session_id}"
+    ws_url = gateway.replace("http://", "ws://").replace("https://", "wss://") + "/v2/events/ws"
     if api_key:
         ws_url = f"{ws_url}?{urlencode({'api_key': api_key})}"
 
@@ -41,8 +42,8 @@ async def run_agent_flow(
         headers = {"x-api-key": api_key} if api_key else {}
         async with httpx.AsyncClient(timeout=30, headers=headers) as client:
             response = await client.post(
-                f"{gateway}/v1/orchestrate",
-                json={"session_id": session_id, "prompt": prompt},
+                f"{gateway}/v2/orchestrate",
+                json={"session_id": session_id, "scene_id": scene_id, "base_revision": 0, "prompt": prompt},
             )
             response.raise_for_status()
             turn = response.json()
@@ -83,11 +84,12 @@ async def run_agent_flow(
     segments = payload.get("voice", {}).get("segments", [])
     voice_uri = segments[0].get("audio_uri", "") if segments else ""
 
+    patch_count = len(payload.get("patches", []) or payload.get("legacy_visual_patches", []) or payload.get("visual_patches", []))
     return TurnResult(
         session_id=payload.get("session_id", session_id),
         turn_id=payload.get("turn_id", turn_id),
         text=payload.get("text", ""),
-        patch_count=len(payload.get("visual_patches", [])),
+        patch_count=patch_count,
         voice_uri=voice_uri,
     )
 

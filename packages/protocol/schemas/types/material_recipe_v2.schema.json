@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "opencommotion/types/material_recipe_v2.schema.json",
+  "title": "MaterialRecipeV2",
+  "type": "object",
+  "required": ["recipe_id", "version", "backend_targets", "uniform_schema", "texture_slots"],
+  "properties": {
+    "recipe_id": { "type": "string" },
+    "version": { "type": "string" },
+    "backend_targets": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "uniform_schema": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["type", "default", "min", "max", "max_update_hz"],
+        "properties": {
+          "type": { "type": "string", "enum": ["number", "int", "boolean"] },
+          "default": {},
+          "min": { "type": "number" },
+          "max": { "type": "number" },
+          "max_update_hz": { "type": "number", "minimum": 0.1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "texture_slots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["slot", "required", "max_dimension"],
+        "properties": {
+          "slot": { "type": "string" },
+          "required": { "type": "boolean" },
+          "max_dimension": { "type": "integer", "minimum": 1 },
+          "formats": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": false
+      }
+    },
+    "asset_refs": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": false
+}

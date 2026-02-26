@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "opencommotion/types/scene_patch_op_v2.schema.json",
+  "title": "ScenePatchOpV2",
+  "type": "object",
+  "required": ["op_id", "at_ms", "op"],
+  "properties": {
+    "op_id": { "type": "string", "minLength": 1 },
+    "at_ms": { "type": "integer", "minimum": 0 },
+    "op": {
+      "type": "string",
+      "enum": [
+        "createEntity",
+        "updateEntity",
+        "destroyEntity",
+        "createMaterial",
+        "updateMaterial",
+        "destroyMaterial",
+        "applyMaterial",
+        "setUniform",
+        "createBehavior",
+        "updateBehavior",
+        "destroyBehavior",
+        "trigger"
+      ]
+    },
+    "entity_id": { "type": "string" },
+    "material_id": { "type": "string" },
+    "behavior_id": { "type": "string" },
+    "kind": { "type": "string" },
+    "data": { "type": "object", "additionalProperties": true },
+    "changes": { "type": "object", "additionalProperties": true },
+    "target_id": { "type": "string" },
+    "action": { "type": "string" },
+    "uniform": { "type": "string" },
+    "value": {},
+    "payload": { "type": "object", "additionalProperties": true }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "op": { "const": "createEntity" } } },
+      "then": { "required": ["entity_id", "kind"] }
+    },
+    {
+      "if": { "properties": { "op": { "const": "updateEntity" } } },
+      "then": { "required": ["entity_id", "changes"] }
+    },
+    {
+      "if": { "properties": { "op": { "const": "destroyEntity" } } },
+      "then": { "required": ["entity_id"] }
+    },
+    {
+      "if": { "properties": { "op": { "const": "createMaterial" } } },
+      "then": { "required": ["material_id", "data"] }
+    },
+    {
+      "if": { "properties": { "op": { "const": "updateMaterial" } } },
+      "then": { "required": ["material_id", "changes"] }
+    },
+    {
+      "if": { "properties": { "op": { "const": "destroyMaterial" } } },
+      "then": { "required": ["material_id"] }
+    },
+    {
+      "if": { "properties": { "op": { "const": "applyMaterial" } } },
+      "then": { "required": ["entity_id", "material_id"] }
+    },
+    {
+      "if": { "properties": { "op": { "const": "setUniform" } } },
+      "then": { "required": ["material_id", "uniform", "value"] }
+    },
+    {
+      "if": { "properties": { "op": { "const": "createBehavior" } } },
+      "then": { "required": ["behavior_id", "target_id", "data"] }
+    },
+    {
+      "if": { "properties": { "op": { "const": "updateBehavior" } } },
+      "then": { "required": ["behavior_id", "changes"] }
+    },
+    {
+      "if": { "properties": { "op": { "const": "destroyBehavior" } } },
+      "then": { "required": ["behavior_id"] }
+    },
+    {
+      "if": { "properties": { "op": { "const": "trigger" } } },
+      "then": { "required": ["target_id", "action"] }
+    }
+  ],
+  "additionalProperties": false
+}

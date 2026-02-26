@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -31,6 +32,8 @@ COMMANDS = [
     "fresh-agent-e2e",
     "doctor",
     "quickstart",
+    "version",
+    "where",
 ]
 COMMAND_FLAG_ALIASES = {
     "-install": "install",
@@ -50,6 +53,8 @@ COMMAND_FLAG_ALIASES = {
     "-fresh-agent-e2e": "fresh-agent-e2e",
     "-doctor": "doctor",
     "-quickstart": "quickstart",
+    "-version": "version",
+    "-where": "where",
 }
 
 
@@ -58,6 +63,39 @@ def _venv_python() -> str:
     if candidate.exists():
         return str(candidate)
     return sys.executable
+
+
+def _project_version() -> str:
+    package_path = ROOT / "package.json"
+    try:
+        payload = json.loads(package_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return "0.0.0"
+    version = str(payload.get("version", "")).strip()
+    return version or "0.0.0"
+
+
+def _project_revision() -> str:
+    env_revision = str(os.getenv("OPENCOMMOTION_BUILD_REVISION", "")).strip()
+    if env_revision:
+        return env_revision
+    try:
+        revision = (
+            subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"],
+                cwd=str(ROOT),
+                stderr=subprocess.DEVNULL,
+                text=True,
+            )
+            .strip()
+        )
+    except Exception:  # noqa: BLE001
+        return "dev"
+    return revision or "dev"
+
+
+def _project_identity() -> str:
+    return f"OpenCommotion {_project_version()} ({_project_revision()})"
 
 
 def _env_with_pythonpath() -> dict[str, str]:
@@ -149,6 +187,14 @@ def _ui_hash_inputs() -> list[Path]:
         ROOT / "apps" / "ui" / "package.json",
         ROOT / "package.json",
         ROOT / "package-lock.json",
+        ROOT / ".env",
+        ROOT / ".env.local",
+        ROOT / ".env.production",
+        ROOT / ".env.development",
+        ROOT / "apps" / "ui" / ".env",
+        ROOT / "apps" / "ui" / ".env.local",
+        ROOT / "apps" / "ui" / ".env.production",
+        ROOT / "apps" / "ui" / ".env.development",
     ]
     for candidate in static_candidates:
         if candidate.exists():
@@ -464,6 +510,18 @@ def cmd_quickstart() -> int:
     return 0
 
 
+def cmd_version() -> int:
+    print(_project_identity())
+    return 0
+
+
+def cmd_where() -> int:
+    print(f"repo_root={ROOT}")
+    print(f"cli={Path(__file__).resolve()}")
+    print(f"launcher={ROOT / 'opencommotion'}")
+    return 0
+
+
 def _check_url(url: str) -> tuple[bool, str]:
     try:
         with urlopen(url, timeout=2) as response:
@@ -475,6 +533,7 @@ def _check_url(url: str) -> tuple[bool, str]:
 
 
 def cmd_status() -> int:
+    print(f"{_project_identity()} @ {ROOT}")
     checks = [
         ("gateway", "http://127.0.0.1:8000/health"),
         ("orchestrator", "http://127.0.0.1:8001/health"),
@@ -566,6 +625,10 @@ def main() -> int:
         return cmd_doctor()
     if command == "quickstart":
         return cmd_quickstart()
+    if command == "version":
+        return cmd_version()
+    if command == "where":
+        return cmd_where()
     return 2
 
 

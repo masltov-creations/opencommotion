@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "opencommotion/types/behavior_v2.schema.json",
+  "title": "BehaviorV2",
+  "type": "object",
+  "required": ["type"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["timeline", "state_machine", "parametric_motion"]
+    },
+    "name": { "type": "string" },
+    "state": { "type": "string" },
+    "loop": { "type": "boolean" },
+    "duration_ms": { "type": "integer", "minimum": 0 },
+    "seed": { "type": "integer", "minimum": 0 },
+    "timeline": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["at_ms", "target", "value"],
+        "properties": {
+          "at_ms": { "type": "integer", "minimum": 0 },
+          "target": { "type": "string" },
+          "easing": { "type": "string" },
+          "value": {}
+        },
+        "additionalProperties": false
+      }
+    },
+    "states": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "on_enter": { "type": "array", "items": { "type": "string" } },
+          "on_exit": { "type": "array", "items": { "type": "string" } },
+          "transitions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["event", "to"],
+              "properties": {
+                "event": { "type": "string" },
+                "to": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "params": { "type": "object", "additionalProperties": true }
+  },
+  "additionalProperties": true
+}

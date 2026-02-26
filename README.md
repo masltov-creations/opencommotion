@@ -115,6 +115,23 @@ opencommotion fresh
 
 This resets local runtime state and rebuilds UI assets from current source.
 
+If you see `orchestrate failed: request timed out or was aborted` on longer prompts, increase UI request timeout and restart:
+
+```bash
+echo 'VITE_ORCHESTRATE_TIMEOUT_MS=180000' >> .env
+opencommotion run
+```
+
+If you still see the old error text `signal is aborted without reason`, you are on an older UI build/launcher.
+Run this recovery sequence, then hard-refresh the browser (`Ctrl+Shift+R`):
+
+```bash
+opencommotion where
+opencommotion version
+opencommotion update
+opencommotion run
+```
+
 If you ever see `bash: ./scripts/setup.sh: Permission denied`:
 
 ```bash
@@ -327,7 +344,7 @@ Auth defaults:
 
 Client auth:
 - HTTP header: `x-api-key: <key>`
-- WebSocket: `ws://127.0.0.1:8000/v1/events/ws?api_key=<key>`
+- WebSocket: `ws://127.0.0.1:8000/v2/events/ws?api_key=<key>`
 
 LLM providers:
 - `heuristic|ollama|openai-compatible|codex-cli|openclaw-cli|openclaw-openai`
@@ -353,6 +370,12 @@ Use probe output + `docs/TOOL_ENHANCEMENT_BACKLOG.md` to record bug candidates v
 
 ## Core API Surface
 
+- `POST /v2/orchestrate`
+- `GET /v2/runtime/capabilities`
+- `WS /v2/events/ws`
+- `GET /v2/scenes/{scene_id}`
+- `POST /v2/scenes/{scene_id}/snapshot`
+- `POST /v2/scenes/{scene_id}/restore`
 - `GET /v1/setup/state`
 - `POST /v1/setup/validate`
 - `POST /v1/setup/state`
@@ -362,7 +385,8 @@ Use probe output + `docs/TOOL_ENHANCEMENT_BACKLOG.md` to record bug candidates v
 - `POST /v1/agent-runs/{run_id}/enqueue`
 - `POST /v1/agent-runs/{run_id}/control`
 
-For market-growth prompts, `POST /v1/orchestrate` also returns a `quality_report` block with compatibility checks/failures for generated graph payloads.
+For market-growth prompts, `POST /v2/orchestrate` returns `quality_report` compatibility checks for generated graph payloads.
+`/v1/*` endpoints remain as a compatibility shim for one release and emit deprecation/sunset headers.
 
 WebSocket run events:
 - `agent.run.state`
@@ -406,6 +430,14 @@ opencommotion test-e2e
 opencommotion test-complete
 opencommotion fresh-agent-e2e
 ```
+
+## Plan Tracking
+
+- Authoritative implementation plan and status tracker: `PROJECT.md`
+- Supporting plan docs:
+  - `docs/VISUAL_INTELLIGENCE_PLAN.md`
+  - `docs/TOOL_ENHANCEMENT_BACKLOG.md`
+- Update expectation: keep `PROJECT.md` current on every implementation session; do not mark work complete without evidence.
 
 ## Extend It
 

@@ -31,7 +31,31 @@ type TurnResult = {
   text: string
   voice: VoicePayload
   visual_patches: Patch[]
+  scene_id?: string
+  revision?: number
   timeline?: { duration_ms: number }
+  quality_report?: QualityReport
+}
+
+type ScenePatchOpV2 = {
+  op_id: string
+  at_ms: number
+  op: string
+  [key: string]: unknown
+}
+
+type TurnResultV2 = {
+  version: 'v2'
+  session_id: string
+  scene_id: string
+  turn_id: string
+  base_revision: number
+  revision: number
+  text: string
+  voice: VoicePayload
+  timeline?: { duration_ms: number }
+  patches: ScenePatchOpV2[]
+  legacy_visual_patches?: Patch[]
   quality_report?: QualityReport
 }
 
@@ -98,11 +122,20 @@ type AgentLogEntry = {
   message: string
 }
 
-const gateway = (import.meta as { env?: Record<string, string> }).env?.VITE_GATEWAY_URL || 'http://127.0.0.1:8000'
+function parsePositiveMs(rawValue: string | undefined, fallbackMs: number): number {
+  const parsed = Number.parseInt((rawValue || '').trim(), 10)
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallbackMs
+  }
+  return parsed
+}
+
+const viteEnv = (import.meta as { env?: Record<string, string> }).env || {}
+const gateway = viteEnv.VITE_GATEWAY_URL || 'http://127.0.0.1:8000'
 const wsGateway = gateway.replace(/^http/i, 'ws')
-const gatewayApiKey =
-  (import.meta as { env?: Record<string, string> }).env?.VITE_GATEWAY_API_KEY || 'dev-opencommotion-key'
-const isTestMode = (import.meta as { env?: Record<string, string> }).env?.MODE === 'test'
+const gatewayApiKey = viteEnv.VITE_GATEWAY_API_KEY || 'dev-opencommotion-key'
+const orchestrateTimeoutMs = parsePositiveMs(viteEnv.VITE_ORCHESTRATE_TIMEOUT_MS, 120000)
+const isTestMode = viteEnv.MODE === 'test'
 const uiVersion = __OPENCOMMOTION_UI_VERSION__
 const uiRevision = __OPENCOMMOTION_UI_REVISION__
 
@@ -112,6 +145,37 @@ function calcDurationMs(turn: TurnResult): number {
     return atMs > max ? atMs : max
   }, 0)
   return Math.max(turn.timeline?.duration_ms || 0, patchEnd + 200)
+}
+
+function isTurnResultV2(payload: unknown): payload is TurnResultV2 {
+  if (!payload || typeof payload !== 'object') {
+    return false
+  }
+  const row = payload as Record<string, unknown>
+  return row.version === 'v2' && typeof row.turn_id === 'string' && Array.isArray(row.patches)
+}
+
+function normalizeTurnPayload(payload: unknown): TurnResult | null {
+  if (isTurnResultV2(payload)) {
+    return {
+      session_id: payload.session_id,
+      scene_id: payload.scene_id,
+      revision: payload.revision,
+      turn_id: payload.turn_id,
+      text: payload.text || '',
+      voice: payload.voice || { voice: 'unknown', segments: [] },
+      visual_patches: payload.legacy_visual_patches || [],
+      timeline: payload.timeline,
+      quality_report: payload.quality_report,
+    }
+  }
+  if (payload && typeof payload === 'object') {
+    const row = payload as Record<string, unknown>
+    if (typeof row.turn_id === 'string' && Array.isArray(row.visual_patches)) {
+      return row as TurnResult
+    }
+  }
+  return null
 }
 
 function describeMotion(actor: SceneActor): string {
@@ -262,8 +326,10 @@ export default function App() {
   const [browserSpeaking, setBrowserSpeaking] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
   const [agentLog, setAgentLog] = useState<AgentLogEntry[]>([])
+  const [sceneRevision, setSceneRevision] = useState(0)
 
   const session = useMemo(() => `sess-${Math.random().toString(36).slice(2)}`, [])
+  const sceneId = useMemo(() => `scene-${session}`, [session])
   const authHeaders = useMemo(() => {
     if (!gatewayApiKey) {
       return {}
@@ -350,7 +416,7 @@ export default function App() {
     setCapsLoading(true)
     setCapsError('')
     try {
-      const res = await fetch(`${gateway}/v1/runtime/capabilities`, { headers: authHeaders })
+      const res = await fetch(`${gateway}/v2/runtime/capabilities`, { headers: authHeaders })
       if (!res.ok) {
         throw new Error(await buildApiErrorMessage(res, 'runtime capabilities'))
       }
@@ -545,6 +611,9 @@ export default function App() {
     lastTurnRef.current = turn.turn_id
     setText(turn.text)
     setVoice(turn.voice)
+    if (typeof turn.revision === 'number' && Number.isFinite(turn.revision)) {
+      setSceneRevision(turn.revision)
+    }
     setQualityReport(turn.quality_report || null)
     const orderedPatches = [...(turn.visual_patches || [])].sort((a, b) => (a.at_ms || 0) - (b.at_ms || 0))
     setPatches(orderedPatches)
@@ -573,6 +642,13 @@ export default function App() {
           )
         }
         if (/aborted|timeout/i.test(message)) {
+          if (op === 'orchestrate') {
+            const timeoutSeconds = Math.max(1, Math.round(orchestrateTimeoutMs / 1000))
+            return (
+              `${op} failed: request timed out after ${timeoutSeconds}s or was aborted. ` +
+              `If your provider is slow, set VITE_ORCHESTRATE_TIMEOUT_MS (milliseconds) and restart the app.`
+            )
+          }
           return `${op} failed: request timed out or was aborted. ${message}`
         }
         return message
@@ -645,15 +721,26 @@ export default function App() {
     setLastError('')
     appendAgentLog('agent.turn.requested', `Prompt: ${previewText(prompt, 160)}`)
     try {
-      const res = await fetchWithTimeout(`${gateway}/v1/orchestrate`, {
+      const reqBody = {
+        session_id: session,
+        scene_id: sceneId,
+        base_revision: sceneRevision,
+        prompt,
+        intent: { rebuild: false },
+      }
+      const res = await fetchWithTimeout(`${gateway}/v2/orchestrate`, {
         method: 'POST',
         headers: { ...authHeaders, 'content-type': 'application/json' },
-        body: JSON.stringify({ session_id: session, prompt }),
-      }, 45000)
+        body: JSON.stringify(reqBody),
+      }, orchestrateTimeoutMs)
       if (!res.ok) {
         throw new Error(await buildApiErrorMessage(res, 'orchestrate'))
       }
-      const data = (await res.json()) as TurnResult
+      const raw = (await res.json()) as unknown
+      const data = normalizeTurnPayload(raw)
+      if (!data) {
+        throw new Error('orchestrate failed: malformed response payload')
+      }
       loadTurn(data)
     } catch (err) {
       const msg = formatClientError(err, 'orchestrate', 'Unknown run-turn failure')
@@ -763,7 +850,7 @@ export default function App() {
 
     let closedByClient = false
     const ws = new WebSocket(
-      gatewayApiKey ? `${wsGateway}/v1/events/ws?api_key=${encodeURIComponent(gatewayApiKey)}` : `${wsGateway}/v1/events/ws`,
+      gatewayApiKey ? `${wsGateway}/v2/events/ws?api_key=${encodeURIComponent(gatewayApiKey)}` : `${wsGateway}/v2/events/ws`,
     )
     const heartbeat = window.setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
@@ -797,13 +884,13 @@ export default function App() {
           void refreshRuns()
           return
         }
-        if (parsed.event_type !== 'gateway.event') {
+        if (parsed.event_type !== 'gateway.event' && parsed.event_type !== 'gateway.v2.event') {
           if (parsed.event_type) {
             appendAgentLog(parsed.event_type, 'Received backend event.')
           }
           return
         }
-        const payload = parsed.payload as TurnResult | undefined
+        const payload = normalizeTurnPayload(parsed.payload)
         if (!payload) {
           return
         }
@@ -823,9 +910,9 @@ export default function App() {
 
     ws.onerror = () => {
       setLastError(
-        `event stream error: could not reach ${wsGateway}/v1/events/ws. Check scripts/opencommotion.py -status.`,
+        `event stream error: could not reach ${wsGateway}/v2/events/ws. Check scripts/opencommotion.py -status.`,
       )
-      appendAgentLog('event.stream.error', `Could not reach ${wsGateway}/v1/events/ws`)
+      appendAgentLog('event.stream.error', `Could not reach ${wsGateway}/v2/events/ws`)
     }
 
     ws.onclose = (event) => {

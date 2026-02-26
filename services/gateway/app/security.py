@@ -23,6 +23,7 @@ EXEMPT_PATH_EXACT = {
     "/metrics",
     "/v1/runtime/capabilities",
     "/v1/voice/capabilities",
+    "/v2/runtime/capabilities",
 }
 EXEMPT_PATH_PREFIXES = {
     "/assets/",

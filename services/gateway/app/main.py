@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from time import perf_counter
+from typing import Any
 from uuid import uuid4
 
 import httpx
@@ -39,6 +42,15 @@ from services.gateway.app.metrics import (
 )
 from services.gateway.app.security import enforce_http_auth, get_security_state, websocket_authorized
 from services.protocol import ProtocolValidationError, ProtocolValidator
+from services.scene_v2 import (
+    SceneApplyError,
+    SceneV2Store,
+    apply_ops,
+    default_policy,
+    list_recipes,
+    patches_to_v2_ops,
+    scene_summary,
+)
 from services.versioning import project_version
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -53,6 +65,39 @@ ORCHESTRATOR_RETRY_BASE_DELAY_S = max(0.05, float(os.getenv("OPENCOMMOTION_ORCHE
 
 def _truthy(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _timeout_env(env_key: str, fallback_s: float) -> float:
+    raw = str(os.getenv(env_key, "")).strip()
+    if not raw:
+        return fallback_s
+    try:
+        value = float(raw)
+    except ValueError:
+        return fallback_s
+    return min(max(value, 0.5), 300.0)
+
+
+def _orchestrator_turn_timeout_s() -> float:
+    baseline = _timeout_env("OPENCOMMOTION_ORCHESTRATOR_TIMEOUT_S", ORCHESTRATOR_REQUEST_TIMEOUT_S)
+    llm = _timeout_env("OPENCOMMOTION_LLM_TIMEOUT_S", 20.0)
+    codex = _timeout_env("OPENCOMMOTION_CODEX_TIMEOUT_S", llm)
+    openclaw = _timeout_env("OPENCOMMOTION_OPENCLAW_TIMEOUT_S", llm)
+    openai_voice = _timeout_env("OPENCOMMOTION_VOICE_OPENAI_TIMEOUT_S", 20.0)
+    expected_turn_budget = max(llm, codex, openclaw, openai_voice) + 5.0
+    return min(300.0, max(baseline, expected_turn_budget))
+
+
+def _httpx_error_message(exc: httpx.HTTPError, timeout_s: float | None = None) -> str:
+    message = str(exc).strip()
+    if message:
+        return message
+    if timeout_s is not None and isinstance(exc, httpx.TimeoutException):
+        return f"request to orchestrator timed out after {timeout_s:.1f}s"
+    return exc.__class__.__name__
+
+
+SCENE_ID_SAFE_RE = re.compile(r"[^a-zA-Z0-9._:-]+")
 
 
 def _looks_like_market_growth_prompt(prompt: str) -> bool:
@@ -85,11 +130,16 @@ def _resolve_runtime_path(env_key: str, default_path: Path) -> Path:
 
 VOICE_AUDIO_ROOT = _resolve_runtime_path("OPENCOMMOTION_AUDIO_ROOT", PROJECT_ROOT / "data" / "audio")
 UI_DIST_ROOT = _resolve_runtime_path("OPENCOMMOTION_UI_DIST_ROOT", PROJECT_ROOT / "apps" / "ui" / "dist")
+SCENE_V2_ROOT = _resolve_runtime_path("OPENCOMMOTION_SCENE_V2_ROOT", PROJECT_ROOT / "runtime" / "scenes")
 VOICE_AUDIO_ROOT.mkdir(parents=True, exist_ok=True)
+SCENE_V2_ROOT.mkdir(parents=True, exist_ok=True)
 
 protocol_validator = ProtocolValidator()
 BRUSH_STROKE_SCHEMA = "types/brush_stroke_v1.schema.json"
 SCENE_PATCH_SCHEMA = "types/scene_patch_v1.schema.json"
+SCENE_PATCH_OP_V2_SCHEMA = "types/scene_patch_op_v2.schema.json"
+SCENE_PATCH_ENVELOPE_V2_SCHEMA = "types/scene_patch_envelope_v2.schema.json"
+RUNTIME_CAPABILITIES_V2_SCHEMA = "types/runtime_capabilities_v2.schema.json"
 BASE_EVENT_SCHEMA = "events/base_event.schema.json"
 ARTIFACT_BUNDLE_SCHEMA = "types/artifact_bundle_v1.schema.json"
 
@@ -97,6 +147,19 @@ ARTIFACT_BUNDLE_SCHEMA = "types/artifact_bundle_v1.schema.json"
 class OrchestrateRequest(BaseModel):
     session_id: str
     prompt: str
+
+
+class OrchestrateV2Intent(BaseModel):
+    rebuild: bool = False
+
+
+class OrchestrateV2Request(BaseModel):
+    session_id: str
+    prompt: str
+    scene_id: str | None = None
+    base_revision: int | None = None
+    capabilities: dict[str, Any] = Field(default_factory=dict)
+    intent: OrchestrateV2Intent = Field(default_factory=OrchestrateV2Intent)
 
 
 class BrushCompileRequest(BaseModel):
@@ -143,6 +206,15 @@ class AgentRunEnqueueRequest(BaseModel):
 
 class AgentRunControlRequest(BaseModel):
     action: str
+
+
+class SceneSnapshotRequest(BaseModel):
+    snapshot_name: str = ""
+    persist_artifact: bool = False
+
+
+class SceneRestoreRequest(BaseModel):
+    snapshot_id: str
 
 
 class WsManager:
@@ -255,6 +327,14 @@ def _validate_orchestrator_payload(result: dict) -> None:
     _validate_many(visual_strokes, BRUSH_STROKE_SCHEMA, context_prefix="orchestrator.visual_strokes")
 
 
+def _apply_v1_deprecation_headers(response: Response, path: str) -> Response:
+    if path.startswith("/v1/"):
+        response.headers["Deprecation"] = "true"
+        response.headers["Sunset"] = "2026-04-30T00:00:00Z"
+        response.headers["Link"] = '</v2/orchestrate>; rel="successor-version"'
+    return response
+
+
 app = FastAPI(title="OpenCommotion Gateway", version=project_version())
 app.mount("/v1/audio", StaticFiles(directory=str(VOICE_AUDIO_ROOT)), name="opencommotion-audio")
 
@@ -267,6 +347,9 @@ app.add_middleware(
 
 registry = ArtifactRegistry()
 ws_manager = WsManager()
+ws_manager_v2 = WsManager()
+scene_store_v2 = SceneV2Store(SCENE_V2_ROOT)
+scene_policy_v2 = default_policy()
 _run_manager: AgentRunManager | None = None
 
 
@@ -278,10 +361,11 @@ async def security_and_metrics(request: Request, call_next):  # type: ignore[ove
         enforce_http_auth(request)
         response = await call_next(request)
         status_code = response.status_code
-        return response
+        return _apply_v1_deprecation_headers(response, request.url.path)
     except HTTPException as exc:
         status_code = exc.status_code
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+        response = JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+        return _apply_v1_deprecation_headers(response, request.url.path)
     finally:
         duration_s = perf_counter() - started
         record_http(
@@ -360,6 +444,9 @@ async def _post_orchestrator_with_retry(path: str, payload: dict, timeout_s: flo
             return response
         except httpx.HTTPStatusError:
             raise
+        except httpx.TimeoutException as exc:
+            last_exc = exc
+            break
         except httpx.HTTPError as exc:
             last_exc = exc
             if attempt >= ORCHESTRATOR_REQUEST_MAX_ATTEMPTS:
@@ -370,16 +457,17 @@ async def _post_orchestrator_with_retry(path: str, payload: dict, timeout_s: flo
     raise last_exc
 
 
-async def _execute_turn(session_id: str, prompt: str, source: str) -> dict:
+async def _execute_turn(session_id: str, prompt: str, source: str, *, broadcast_event: bool = True) -> dict:
     if len(prompt) > 4000:
         raise HTTPException(status_code=422, detail={"error": "prompt_too_long", "max_chars": 4000})
 
     started = perf_counter()
+    request_timeout_s = _orchestrator_turn_timeout_s()
     try:
         resp = await _post_orchestrator_with_retry(
             path="/v1/orchestrate",
             payload={"session_id": session_id, "prompt": prompt},
-            timeout_s=ORCHESTRATOR_REQUEST_TIMEOUT_S,
+            timeout_s=request_timeout_s,
         )
         result = resp.json()
     except httpx.HTTPStatusError as exc:
@@ -400,13 +488,25 @@ async def _execute_turn(session_id: str, prompt: str, source: str) -> dict:
             }
         record_provider_error(provider=provider, error_type=err_type)
         raise HTTPException(status_code=exc.response.status_code, detail=details) from exc
+    except httpx.TimeoutException as exc:
+        record_provider_error(provider="orchestrator", error_type="timeout")
+        raise HTTPException(
+            status_code=504,
+            detail={
+                "error": "orchestrator_timeout",
+                "message": _httpx_error_message(exc, timeout_s=request_timeout_s),
+                "orchestrator_url": ORCHESTRATOR_URL,
+                "timeout_s": request_timeout_s,
+                "hint": "Check provider runtime and timeout settings in setup",
+            },
+        ) from exc
     except httpx.HTTPError as exc:
         record_provider_error(provider="orchestrator", error_type="unreachable")
         raise HTTPException(
             status_code=502,
             detail={
                 "error": "orchestrator_unreachable",
-                "message": str(exc),
+                "message": _httpx_error_message(exc),
                 "orchestrator_url": ORCHESTRATOR_URL,
                 "hint": "Check orchestrator health via opencommotion -status",
             },
@@ -450,9 +550,190 @@ async def _execute_turn(session_id: str, prompt: str, source: str) -> dict:
     }
     if quality_report is not None:
         event["quality_report"] = quality_report
-    await ws_manager.broadcast(event)
+    if broadcast_event:
+        await ws_manager.broadcast(event)
     record_orchestrate(duration_s=perf_counter() - started, source=source)
     return event
+
+
+def _v2_limits_payload() -> dict[str, Any]:
+    return {
+        "max_entities_2d": scene_policy_v2.max_entities_2d,
+        "max_entities_3d": scene_policy_v2.max_entities_3d,
+        "max_patch_ops_per_turn": scene_policy_v2.max_patch_ops_per_turn,
+        "max_materials": scene_policy_v2.max_materials,
+        "max_behaviors": scene_policy_v2.max_behaviors,
+        "max_texture_dimension": scene_policy_v2.max_texture_dimension,
+        "max_texture_memory_mb": scene_policy_v2.max_texture_memory_mb,
+        "max_uniform_update_hz": scene_policy_v2.max_uniform_update_hz,
+    }
+
+
+async def _runtime_capabilities_v2_payload() -> dict[str, Any]:
+    llm_payload: dict[str, Any] = {
+        "selected_provider": "unknown",
+        "effective_ready": False,
+        "error": "orchestrator_unreachable",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=6) as client:
+            response = await client.get(f"{ORCHESTRATOR_URL}/v1/llm/capabilities")
+        response.raise_for_status()
+        llm_payload = response.json()
+    except httpx.HTTPError as exc:
+        llm_payload["message"] = str(exc)
+
+    security = get_security_state()
+    payload = {
+        "version": "v2",
+        "renderers": ["svg-2d", "three-webgl"],
+        "features": {
+            "shaderRecipes": True,
+            "gltfImport": False,
+            "pbr": True,
+            "particles": True,
+            "physics": False,
+        },
+        "limits": _v2_limits_payload(),
+        "shader_recipes": list_recipes(),
+        "llm": llm_payload,
+        "voice": {
+            "stt": stt_capabilities(),
+            "tts": tts_capabilities(),
+        },
+        "security": {
+            "mode": security.mode,
+            "enforcement_active": security.enforcement_active,
+            "api_keys_configured": len(security.api_keys),
+            "allowed_ips_configured": len(security.allowed_ips),
+        },
+    }
+    _validate_or_422(payload, RUNTIME_CAPABILITIES_V2_SCHEMA, context="runtime.capabilities.v2")
+    return payload
+
+
+def _infer_explicit_rebuild(prompt: str, request_rebuild: bool) -> bool:
+    if request_rebuild:
+        return True
+    lowered = str(prompt or "").lower()
+    tokens = ("rebuild", "reset scene", "start over", "full redraw", "replace whole scene", "new scene")
+    return any(token in lowered for token in tokens)
+
+
+def _normalize_scene_id(scene_id: str | None, session_id: str) -> str:
+    raw = str(scene_id or "").strip() or f"scene-{session_id}"
+    compact = SCENE_ID_SAFE_RE.sub("-", raw).strip("-")
+    return compact or f"scene-{session_id}"
+
+
+def _snapshot_asset_sha(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 64), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _persist_snapshot_artifact(scene_id: str, snapshot_meta: dict[str, Any]) -> dict[str, Any]:
+    snapshot_path = Path(str(snapshot_meta.get("path", ""))).resolve()
+    if not snapshot_path.exists():
+        raise FileNotFoundError("snapshot file not found")
+    artifact_id = str(uuid4())
+    bundle = {
+        "artifact_id": artifact_id,
+        "version": "1.0.0",
+        "title": f"Scene Snapshot {scene_id}",
+        "summary": f"OpenCommotion V2 snapshot {snapshot_meta.get('snapshot_id', '')}",
+        "tags": ["scene-v2", "snapshot", scene_id],
+        "scene_entrypoint": str(snapshot_path.name),
+        "assets": [
+            {
+                "path": str(snapshot_path.name),
+                "type": "application/json",
+                "sha256": _snapshot_asset_sha(snapshot_path),
+            }
+        ],
+    }
+    saved = registry.save_artifact(bundle, saved_by="v2-snapshot")
+    return {
+        "artifact_id": saved.get("artifact_id", artifact_id),
+        "title": saved.get("title", ""),
+        "bundle_path": saved.get("bundle_path", ""),
+    }
+
+
+async def _execute_turn_v2(req: OrchestrateV2Request) -> dict[str, Any]:
+    scene_id = _normalize_scene_id(req.scene_id, req.session_id)
+    scene = scene_store_v2.get_or_create(scene_id)
+    current_revision = int(scene.get("revision", 0))
+    if req.base_revision is not None and int(req.base_revision) != current_revision:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "revision_conflict",
+                "scene_id": scene_id,
+                "expected_revision": current_revision,
+                "received_base_revision": int(req.base_revision),
+            },
+        )
+
+    turn = await _execute_turn(
+        session_id=req.session_id,
+        prompt=req.prompt,
+        source="api-v2",
+        broadcast_event=False,
+    )
+    legacy_patches = list(turn.get("visual_patches", []))
+    ops, translator_warnings = patches_to_v2_ops(
+        legacy_patches,
+        turn_id=str(turn.get("turn_id", str(uuid4()))),
+        prompt=req.prompt,
+        scene=scene,
+    )
+    _validate_many(ops, SCENE_PATCH_OP_V2_SCHEMA, context_prefix="orchestrate.v2.patches")
+    explicit_rebuild = _infer_explicit_rebuild(req.prompt, bool(req.intent.rebuild))
+    try:
+        apply_result = apply_ops(scene, ops, scene_policy_v2, explicit_rebuild=explicit_rebuild)
+    except SceneApplyError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": exc.code,
+                "message": exc.message,
+                "scene_id": scene_id,
+                "detail": exc.detail,
+            },
+        ) from exc
+
+    scene_store_v2.autosave(scene_id)
+    warnings = [*translator_warnings, *apply_result.get("warnings", [])]
+    envelope: dict[str, Any] = {
+        "version": "v2",
+        "session_id": req.session_id,
+        "scene_id": scene_id,
+        "turn_id": str(turn.get("turn_id", str(uuid4()))),
+        "base_revision": current_revision,
+        "revision": int(scene.get("revision", current_revision)),
+        "text": str(turn.get("text", "")),
+        "voice": turn.get("voice", {}),
+        "timeline": turn.get("timeline", {"duration_ms": 0}),
+        "patches": apply_result.get("applied_ops", []),
+        "warnings": warnings,
+        "degrade_notes": apply_result.get("degrade_notes", []),
+        "explanation_text": str(turn.get("text", "")),
+        "legacy_visual_patches": legacy_patches,
+    }
+    if "quality_report" in turn:
+        envelope["quality_report"] = turn["quality_report"]
+    _validate_or_422(envelope, SCENE_PATCH_ENVELOPE_V2_SCHEMA, context="orchestrate.v2.envelope")
+    await ws_manager_v2.broadcast_typed(
+        event_type="gateway.v2.event",
+        payload=envelope,
+        session_id=req.session_id,
+        turn_id=str(envelope["turn_id"]),
+        actor="gateway-v2",
+    )
+    return envelope
 
 
 def _get_run_manager() -> AgentRunManager:
@@ -503,6 +784,19 @@ async def events_ws(websocket: WebSocket) -> None:
             await websocket.receive_text()
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket)
+
+
+@app.websocket("/v2/events/ws")
+async def events_ws_v2(websocket: WebSocket) -> None:
+    if not websocket_authorized(websocket):
+        await websocket.close(code=4401)
+        return
+    await ws_manager_v2.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        ws_manager_v2.disconnect(websocket)
 
 
 @app.post("/v1/brush/compile")
@@ -593,6 +887,11 @@ async def runtime_capabilities() -> dict:
             "allowed_ips_configured": len(security.allowed_ips),
         },
     }
+
+
+@app.get("/v2/runtime/capabilities")
+async def runtime_capabilities_v2() -> dict[str, Any]:
+    return await _runtime_capabilities_v2_payload()
 
 
 @app.get("/v1/setup/state")
@@ -704,6 +1003,64 @@ def archive_artifact(artifact_id: str, req: ArtifactToggleRequest) -> dict:
 @app.post("/v1/orchestrate")
 async def orchestrate(req: OrchestrateRequest) -> dict:
     return await _execute_turn(session_id=req.session_id, prompt=req.prompt, source="api")
+
+
+@app.post("/v2/orchestrate")
+async def orchestrate_v2(req: OrchestrateV2Request) -> dict[str, Any]:
+    return await _execute_turn_v2(req)
+
+
+@app.get("/v2/scenes/{scene_id}")
+def v2_scene_state(scene_id: str) -> dict[str, Any]:
+    resolved_id = _normalize_scene_id(scene_id, scene_id)
+    view = scene_store_v2.state_view(resolved_id)
+    scene = scene_store_v2.get_or_create(resolved_id)
+    return {
+        "scene_id": resolved_id,
+        "scene": view.get("scene", scene_summary(scene)),
+        "snapshots": view.get("snapshots", []),
+        "warnings": list(scene.get("warnings", []))[-30:],
+    }
+
+
+@app.post("/v2/scenes/{scene_id}/snapshot")
+def v2_scene_snapshot(scene_id: str, req: SceneSnapshotRequest) -> dict[str, Any]:
+    resolved_id = _normalize_scene_id(scene_id, scene_id)
+    try:
+        snapshot = scene_store_v2.snapshot(resolved_id, req.snapshot_name)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "snapshot_failed", "scene_id": resolved_id, "message": str(exc)},
+        ) from exc
+    artifact: dict[str, Any] | None = None
+    if req.persist_artifact:
+        try:
+            artifact = _persist_snapshot_artifact(resolved_id, snapshot)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(
+                status_code=500,
+                detail={"error": "snapshot_artifact_failed", "scene_id": resolved_id, "message": str(exc)},
+            ) from exc
+    return {"ok": True, "snapshot": snapshot, "artifact": artifact}
+
+
+@app.post("/v2/scenes/{scene_id}/restore")
+def v2_scene_restore(scene_id: str, req: SceneRestoreRequest) -> dict[str, Any]:
+    resolved_id = _normalize_scene_id(scene_id, scene_id)
+    try:
+        restored = scene_store_v2.restore(resolved_id, req.snapshot_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "snapshot_not_found", "scene_id": resolved_id, "snapshot_id": req.snapshot_id},
+        ) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "snapshot_restore_failed", "scene_id": resolved_id, "message": str(exc)},
+        ) from exc
+    return {"ok": True, "restored": restored}
 
 
 @app.post("/v1/agent-runs")

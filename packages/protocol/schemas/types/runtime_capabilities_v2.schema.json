@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "opencommotion/types/runtime_capabilities_v2.schema.json",
+  "title": "RuntimeCapabilitiesV2",
+  "type": "object",
+  "required": ["version", "renderers", "features", "limits"],
+  "properties": {
+    "version": { "type": "string", "const": "v2" },
+    "renderers": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "features": {
+      "type": "object",
+      "required": ["shaderRecipes", "gltfImport", "pbr", "particles", "physics"],
+      "properties": {
+        "shaderRecipes": { "type": "boolean" },
+        "gltfImport": { "type": "boolean" },
+        "pbr": { "type": "boolean" },
+        "particles": { "type": "boolean" },
+        "physics": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "limits": {
+      "type": "object",
+      "required": [
+        "max_entities_2d",
+        "max_entities_3d",
+        "max_patch_ops_per_turn",
+        "max_materials",
+        "max_behaviors",
+        "max_texture_dimension",
+        "max_texture_memory_mb",
+        "max_uniform_update_hz"
+      ],
+      "properties": {
+        "max_entities_2d": { "type": "integer", "minimum": 1 },
+        "max_entities_3d": { "type": "integer", "minimum": 1 },
+        "max_patch_ops_per_turn": { "type": "integer", "minimum": 1 },
+        "max_materials": { "type": "integer", "minimum": 1 },
+        "max_behaviors": { "type": "integer", "minimum": 1 },
+        "max_texture_dimension": { "type": "integer", "minimum": 1 },
+        "max_texture_memory_mb": { "type": "integer", "minimum": 1 },
+        "max_uniform_update_hz": { "type": "number", "minimum": 0.1 }
+      },
+      "additionalProperties": false
+    },
+    "shader_recipes": {
+      "type": "array",
+      "items": { "$ref": "material_recipe_v2.schema.json" }
+    },
+    "llm": { "type": "object", "additionalProperties": true },
+    "voice": { "type": "object", "additionalProperties": true },
+    "security": { "type": "object", "additionalProperties": true }
+  },
+  "additionalProperties": false
+}

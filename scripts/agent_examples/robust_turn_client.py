@@ -27,7 +27,7 @@ class ClientConfig:
 
 
 def _ws_url(gateway: str, api_key: str) -> str:
-    base = gateway.replace("http://", "ws://").replace("https://", "wss://").rstrip("/") + "/v1/events/ws"
+    base = gateway.replace("http://", "ws://").replace("https://", "wss://").rstrip("/") + "/v2/events/ws"
     if not api_key:
         return base
     return f"{base}?{urlencode({'api_key': api_key})}"
@@ -58,6 +58,7 @@ async def post_orchestrate_with_retry(
     client: httpx.AsyncClient,
     gateway: str,
     session_id: str,
+    scene_id: str,
     prompt: str,
     retries: int,
 ) -> dict:
@@ -65,8 +66,8 @@ async def post_orchestrate_with_retry(
     for attempt in range(1, retries + 1):
         try:
             res = await client.post(
-                f"{gateway}/v1/orchestrate",
-                json={"session_id": session_id, "prompt": prompt},
+                f"{gateway}/v2/orchestrate",
+                json={"session_id": session_id, "scene_id": scene_id, "base_revision": 0, "prompt": prompt},
             )
             if res.status_code >= 500 and attempt < retries:
                 await asyncio.sleep(min(0.6 * (2 ** (attempt - 1)), 2.4))
@@ -126,6 +127,7 @@ async def run(config: ClientConfig) -> None:
     )
 
     ws_url = _ws_url(gateway, config.api_key)
+    scene_id = f"scene-{config.session_id}"
     async with websockets.connect(ws_url, ping_interval=10, ping_timeout=10) as ws:
         await ws.send("ping")
 
@@ -135,6 +137,7 @@ async def run(config: ClientConfig) -> None:
                 client=client,
                 gateway=gateway,
                 session_id=config.session_id,
+                scene_id=scene_id,
                 prompt=config.prompt,
                 retries=config.rest_retries,
             )
@@ -180,7 +183,7 @@ async def run(config: ClientConfig) -> None:
         "source": source,
         "session_id": payload.get("session_id", config.session_id),
         "turn_id": payload.get("turn_id", ""),
-        "patch_count": len(payload.get("visual_patches", [])),
+        "patch_count": len(payload.get("patches", []) or payload.get("legacy_visual_patches", []) or payload.get("visual_patches", [])),
         "text": payload.get("text", ""),
         "voice_uri": voice_uri,
         "search_results_count": len(search_results),

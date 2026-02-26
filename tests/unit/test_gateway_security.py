@@ -11,3 +11,7 @@ def test_ui_root_assets_are_exempt_from_auth() -> None:
 def test_api_endpoints_are_not_implicitly_exempt() -> None:
     assert not path_is_exempt("/v1/orchestrate")
     assert not path_is_exempt("/v1/artifacts/save")
+
+
+def test_v2_runtime_capabilities_is_exempt_for_bootstrap() -> None:
+    assert path_is_exempt("/v2/runtime/capabilities")

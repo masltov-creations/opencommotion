@@ -2,6 +2,10 @@
 
 This guide explains how an external agent process connects to OpenCommotion services.
 
+V2 default:
+- Use `/v2/orchestrate`, `/v2/events/ws`, and `/v2/runtime/capabilities` for new integrations.
+- `/v1/*` turn/event endpoints are compatibility shims for one release while clients migrate.
+
 Recommended default integration pattern:
 - `docs/USAGE_PATTERNS.md`
 - `scripts/agent_examples/robust_turn_client.py`
@@ -38,8 +42,8 @@ Default endpoints:
 - Gateway: `http://127.0.0.1:8000`
 - Orchestrator: `http://127.0.0.1:8001`
 - UI: `http://127.0.0.1:8000`
-- Event stream (WebSocket): `ws://127.0.0.1:8000/v1/events/ws`
-- Runtime capabilities (LLM + voice): `http://127.0.0.1:8000/v1/runtime/capabilities`
+- Event stream (WebSocket): `ws://127.0.0.1:8000/v2/events/ws`
+- Runtime capabilities (LLM + voice): `http://127.0.0.1:8000/v2/runtime/capabilities`
 
 Contributor note:
 - For hot-reload UI development, run `opencommotion dev` and use `http://127.0.0.1:5173`.
@@ -67,19 +71,19 @@ curl -sS http://127.0.0.1:8001/health
 ## 3) Agent turn flow (REST + WS)
 
 Typical flow for an agent client:
-1. Open websocket to `/v1/events/ws`.
+1. Open websocket to `/v2/events/ws`.
 2. Keep connection alive by sending periodic text (`ping`).
-3. Submit turn to `POST /v1/orchestrate` with `session_id` and `prompt`.
-4. Receive the same turn envelope on websocket (`event_type: gateway.event`).
-5. Read `payload.text`, `payload.voice`, and `payload.visual_patches`.
+3. Submit turn to `POST /v2/orchestrate` with `session_id`, `scene_id`, and `prompt`.
+4. Receive the same turn envelope on websocket (`event_type: gateway.v2.event`).
+5. Read `payload.text`, `payload.voice`, and `payload.patches` (`legacy_visual_patches` exists for compatibility renderers).
 
 Example:
 
 ```bash
-curl -sS -X POST http://127.0.0.1:8000/v1/orchestrate \
+curl -sS -X POST http://127.0.0.1:8000/v2/orchestrate \
   -H "x-api-key: ${OPENCOMMOTION_API_KEY}" \
   -H 'content-type: application/json' \
-  -d '{"session_id":"agent-session-1","prompt":"moonwalk adoption chart with voice"}'
+  -d '{"session_id":"agent-session-1","scene_id":"scene-agent-session-1","base_revision":0,"prompt":"moonwalk adoption chart with voice"}'
 ```
 
 ## 4) Voice connection points
@@ -112,7 +116,7 @@ curl -sS http://127.0.0.1:8000/v1/voice/capabilities
 - Check full runtime readiness (LLM + STT + TTS):
 
 ```bash
-curl -sS http://127.0.0.1:8000/v1/runtime/capabilities
+curl -sS http://127.0.0.1:8000/v2/runtime/capabilities
 ```
 
 Production note:

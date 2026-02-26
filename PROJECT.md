@@ -1,10 +1,22 @@
 Project: OpenCommotion
 
-Updated: 2026-02-25
+Updated: 2026-02-26
 
 Source of truth:
 - This file is the active implementation plan + status tracker.
 - Do not treat other files as completion state.
+
+Plan update protocol (required):
+- Update this file at the end of every implementation session that changes code, tests, docs, or release state.
+- Always update all of the following together:
+  - `Updated:` date
+  - `Current status`
+  - `Progress checklist` (check/uncheck accurately)
+  - `Active tasks` (add/remove/reorder as needed)
+  - `Change log` (append dated entries)
+- Do not mark anything as done without evidence (test command, artifact path, or reproducible validation step).
+- If work is partial, mark as in progress/pending and capture the blocker explicitly in `Active tasks`.
+- Keep this file truthful even when other docs lag.
 
 Current status:
 - Overall project status: in progress
@@ -13,6 +25,10 @@ Current status:
   - `python3 scripts/opencommotion.py test-complete`
   - `python3 scripts/opencommotion.py fresh-agent-e2e`
   - `python3 scripts/opencommotion.py doctor`
+- Plan tracker status:
+  - `PROJECT.md`: authoritative and current
+  - `docs/VISUAL_INTELLIGENCE_PLAN.md`: synchronized summary + scenario requirements
+  - `docs/TOOL_ENHANCEMENT_BACKLOG.md`: enhancement/status ledger for discovered tool gaps
 
 Primary objectives:
 - Local-first visual orchestration with synchronized text, voice, and patch animation.
@@ -83,6 +99,7 @@ Progress checklist:
 - [x] Generic visual primitive contract lane (`setRenderMode`, `spawnSceneActor`, `setActorMotion`, `emitFx`, etc.)
 - [x] Stretch Scenario D baseline implementation (fish bowl cinematic primitives + tests)
 - [x] Prompt-probe required scenario baseline (A/B/C/D path expectations pass with seed set)
+- [x] V2 scene-state scaffolding: schema family, `/v2/*` API surface, deterministic op apply engine, scene snapshot endpoints
 - [ ] Long-haul soak/recovery evidence in production-like environment
 - [ ] Final production readiness sign-off
 
@@ -148,3 +165,4 @@ Change log:
 - 2026-02-25: Added tool enhancement backlog tracking doc and linked governance tasks in source-of-truth plan.
 - 2026-02-25: Added prompt compatibility probe script and triaged scenario A/B tool gaps plus exploratory prompt enhancement candidate.
 - 2026-02-25: Implemented scenario A (cow/moon lyric+bouncing-ball) and scenario B (day/night transition) baseline support; prompt probe required failures reduced to zero.
+- 2026-02-26: Added V2 scene-state contract + gateway endpoints (`/v2/orchestrate`, `/v2/events/ws`, `/v2/runtime/capabilities`, `/v2/scenes/*`), deterministic op engine/store, and UI default switch to `/v2` with legacy patch compatibility lane.

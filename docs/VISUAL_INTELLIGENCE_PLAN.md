@@ -1,10 +1,15 @@
 # Visual Intelligence v2 Plan (Parallel Execution)
 
-Updated: 2026-02-25
+Updated: 2026-02-26
 
 ## Goal
 
 Ship a generic visual intelligence system where scenes are composed from reusable primitives, not one-off templates, and certify required scenarios in both `2d` and `3d`.
+
+Status sync contract:
+- Source-of-truth tracker is `PROJECT.md`.
+- This document must be updated whenever scenario scope, certification criteria, or implementation status changes.
+- Do not mark scenario lanes complete here unless the same status is reflected in `PROJECT.md`.
 
 ## Parallel Workstreams
 
@@ -153,6 +158,9 @@ Pending for full production-grade v2:
 2. Dedicated shader runtime with GPU compile/telemetry budgets.
 3. Full A/B/C certification in both 2D and 3D tracks under v2 contract.
 4. Long-haul performance soak for all scenario variants.
+
+Plan status note:
+- Current progress/checklist state lives in `PROJECT.md` and must be kept in sync with this document.
 
 ## Tool-Enhancement Tracking
 

@@ -7,6 +7,11 @@
   "types": [
     "types/scene_patch_v1.schema.json",
     "types/brush_stroke_v1.schema.json",
-    "types/artifact_bundle_v1.schema.json"
+    "types/artifact_bundle_v1.schema.json",
+    "types/behavior_v2.schema.json",
+    "types/material_recipe_v2.schema.json",
+    "types/scene_patch_op_v2.schema.json",
+    "types/scene_patch_envelope_v2.schema.json",
+    "types/runtime_capabilities_v2.schema.json"
   ]
 }
