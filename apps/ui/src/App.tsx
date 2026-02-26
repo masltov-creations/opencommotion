@@ -90,6 +90,13 @@ type AgentRun = {
   }
 }
 
+type AgentLogEntry = {
+  id: string
+  at: string
+  event_type: string
+  message: string
+}
+
 const gateway = (import.meta as { env?: Record<string, string> }).env?.VITE_GATEWAY_URL || 'http://127.0.0.1:8000'
 const wsGateway = gateway.replace(/^http/i, 'ws')
 const gatewayApiKey =
@@ -207,6 +214,18 @@ function styleString(style: Record<string, unknown>, key: string, fallback: stri
   return typeof raw === 'string' && raw.trim() ? raw : fallback
 }
 
+function previewText(raw: string, max: number = 120): string {
+  const clean = raw.trim()
+  if (!clean) {
+    return ''
+  }
+  return clean.length <= max ? clean : `${clean.slice(0, max)}...`
+}
+
+function normalizeAgentThreadText(raw: string): string {
+  return raw.replace(/^OpenCommotion:\s*/i, '').trim()
+}
+
 export default function App() {
   const [prompt, setPrompt] = useState('show a moonwalk with adoption chart and pie')
   const [text, setText] = useState('')
@@ -240,6 +259,7 @@ export default function App() {
   const [runActionLoading, setRunActionLoading] = useState(false)
   const [browserSpeaking, setBrowserSpeaking] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
+  const [agentLog, setAgentLog] = useState<AgentLogEntry[]>([])
 
   const session = useMemo(() => `sess-${Math.random().toString(36).slice(2)}`, [])
   const authHeaders = useMemo(() => {
@@ -261,6 +281,18 @@ export default function App() {
     () => typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window,
     [],
   )
+  const appendAgentLog = useCallback((eventType: string, message: string) => {
+    const line = message.trim()
+    if (!line) {
+      return
+    }
+    const at = new Date().toLocaleTimeString()
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    setAgentLog((current) => {
+      const next = [...current, { id, at, event_type: eventType, message: line }]
+      return next.length > 140 ? next.slice(next.length - 140) : next
+    })
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined' || isTestMode) {
@@ -518,6 +550,11 @@ export default function App() {
     setDurationMs(totalDuration)
     setPlaybackMs(0)
     setPlaying(true)
+    const normalizedText = normalizeAgentThreadText(turn.text || '')
+    appendAgentLog(
+      'agent.turn.completed',
+      `Turn ${turn.turn_id} completed. ${turn.visual_patches.length} patches. Agent said: ${previewText(normalizedText, 140)}`,
+    )
     if (turn.voice?.engine === 'tone-fallback') {
       speakInBrowser(turn.text || '')
     }
@@ -604,6 +641,7 @@ export default function App() {
   async function runTurn() {
     setRunning(true)
     setLastError('')
+    appendAgentLog('agent.turn.requested', `Prompt: ${previewText(prompt, 160)}`)
     try {
       const res = await fetchWithTimeout(`${gateway}/v1/orchestrate`, {
         method: 'POST',
@@ -618,6 +656,7 @@ export default function App() {
     } catch (err) {
       const msg = formatClientError(err, 'orchestrate', 'Unknown run-turn failure')
       setLastError(msg)
+      appendAgentLog('agent.turn.failed', msg)
     } finally {
       setRunning(false)
     }
@@ -739,6 +778,12 @@ export default function App() {
           turn_id?: string
         }
         if (parsed.event_type === 'agent.run.state') {
+          const payload = parsed.payload as { state?: { status?: string; run_id?: string; queue?: { queued?: number } } } | undefined
+          const state = payload?.state
+          const status = state?.status || 'unknown'
+          const runId = state?.run_id || parsed.session_id || 'n/a'
+          const queued = Number(state?.queue?.queued || 0)
+          appendAgentLog('agent.run.state', `run=${runId} status=${status} queue=${queued}`)
           void refreshRuns()
           return
         }
@@ -746,10 +791,14 @@ export default function App() {
           const payload = parsed.payload as { error?: string } | undefined
           const message = payload?.error?.trim()
           setLastError(message ? `agent.turn.failed: ${message}` : 'Agent run turn failed. Check run status for details.')
+          appendAgentLog('agent.turn.failed', message || 'Agent run turn failed.')
           void refreshRuns()
           return
         }
         if (parsed.event_type !== 'gateway.event') {
+          if (parsed.event_type) {
+            appendAgentLog(parsed.event_type, 'Received backend event.')
+          }
           return
         }
         const payload = parsed.payload as TurnResult | undefined
@@ -757,6 +806,11 @@ export default function App() {
           return
         }
         if (payload.session_id !== session) {
+          const normalizedText = normalizeAgentThreadText(payload.text || '')
+          appendAgentLog(
+            'gateway.event',
+            `session=${payload.session_id} turn=${payload.turn_id} text=${previewText(normalizedText, 90) || '[no text]'}`,
+          )
           return
         }
         loadTurn(payload)
@@ -769,6 +823,7 @@ export default function App() {
       setLastError(
         `event stream error: could not reach ${wsGateway}/v1/events/ws. Check scripts/opencommotion.py -status.`,
       )
+      appendAgentLog('event.stream.error', `Could not reach ${wsGateway}/v1/events/ws`)
     }
 
     ws.onclose = (event) => {
@@ -779,6 +834,7 @@ export default function App() {
         setLastError(
           `event stream closed (${event.code}). Check scripts/opencommotion.py -status and reload the page.`,
         )
+        appendAgentLog('event.stream.closed', `Socket closed with code ${event.code}`)
       }
     }
 
@@ -787,7 +843,7 @@ export default function App() {
       window.clearInterval(heartbeat)
       ws.close()
     }
-  }, [session, authHeaders, refreshRuns])
+  }, [session, authHeaders, refreshRuns, appendAgentLog])
 
   useEffect(() => {
     return () => {
@@ -1251,6 +1307,27 @@ export default function App() {
             <button onClick={() => setToolsOpen((current) => !current)}>{toolsOpen ? 'Hide Tools' : 'Open Tools'}</button>
           </div>
           {lastError ? <p className="error">{lastError}</p> : null}
+        </section>
+
+        <section className="card agent-log-panel" data-testid="agent-log-panel">
+          <div className="row controls">
+            <h2>Backend Agent Thread</h2>
+            <button onClick={() => setAgentLog([])} disabled={!agentLog.length}>Clear</button>
+          </div>
+          <p className="muted">Live event stream: what the backend agent says and what it is doing.</p>
+          <div className="agent-log-window" role="log" aria-live="polite">
+            {agentLog.length ? (
+              [...agentLog].reverse().map((entry) => (
+                <p className="agent-log-row" key={entry.id}>
+                  <span className="agent-log-time">[{entry.at}]</span>
+                  <span className="agent-log-event">{entry.event_type}</span>
+                  <span className="agent-log-message">{entry.message}</span>
+                </p>
+              ))
+            ) : (
+              <p className="muted">No backend events yet.</p>
+            )}
+          </div>
         </section>
       </main>
 

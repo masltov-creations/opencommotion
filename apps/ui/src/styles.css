@@ -144,6 +144,45 @@ body {
 
 .prompt-composer {
   max-height: clamp(140px, 22vh, 260px);
+  overflow-y: auto;
+}
+
+.agent-log-panel {
+  min-height: 170px;
+}
+
+.agent-log-window {
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 10px;
+  background: rgba(2, 6, 23, 0.45);
+  max-height: 210px;
+  overflow-y: auto;
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.agent-log-row {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.agent-log-time {
+  color: var(--text-subtle);
+  font-family: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+.agent-log-event {
+  color: #a5f3fc;
+  font-weight: 700;
+}
+
+.agent-log-message {
+  color: var(--text-muted);
 }
 
 .composer-input {
