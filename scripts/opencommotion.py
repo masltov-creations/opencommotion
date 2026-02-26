@@ -14,7 +14,9 @@ from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 UI_SRC_ROOT = ROOT / "apps" / "ui" / "src"
-UI_BUILD_MARKER = ROOT / "apps" / "ui" / "dist" / ".opencommotion-build-hash"
+UI_TRACKED_DIST_ROOT = ROOT / "apps" / "ui" / "dist"
+UI_RUNTIME_DIST_ROOT = ROOT / "runtime" / "ui-dist"
+UI_BUILD_MARKER = UI_RUNTIME_DIST_ROOT / ".opencommotion-build-hash"
 COMMANDS = [
     "install",
     "setup",
@@ -108,6 +110,8 @@ def _env_with_pythonpath() -> dict[str, str]:
             env["PYTHONPATH"] = f"{root}:{current}"
     else:
         env["PYTHONPATH"] = root
+    env.setdefault("OPENCOMMOTION_UI_DIST_ROOT", str(UI_RUNTIME_DIST_ROOT))
+    env.setdefault("OPENCOMMOTION_UI_BUILD_OUT_DIR", str(UI_RUNTIME_DIST_ROOT))
     return env
 
 
@@ -213,22 +217,41 @@ def _ui_source_hash() -> str:
     return digest.hexdigest()
 
 
+def _seed_runtime_dist_from_tracked() -> bool:
+    tracked_index = UI_TRACKED_DIST_ROOT / "index.html"
+    runtime_index = UI_RUNTIME_DIST_ROOT / "index.html"
+    if runtime_index.exists():
+        return True
+    if not tracked_index.exists():
+        return False
+    UI_RUNTIME_DIST_ROOT.parent.mkdir(parents=True, exist_ok=True)
+    if UI_RUNTIME_DIST_ROOT.exists():
+        shutil.rmtree(UI_RUNTIME_DIST_ROOT)
+    shutil.copytree(UI_TRACKED_DIST_ROOT, UI_RUNTIME_DIST_ROOT)
+    return (UI_RUNTIME_DIST_ROOT / "index.html").exists()
+
+
 def _ensure_ui_dist_current() -> int:
     if os.getenv("OPENCOMMOTION_SKIP_UI_BUILD", "").strip().lower() in {"1", "true", "yes", "on"}:
+        _seed_runtime_dist_from_tracked()
         return 0
     if not (ROOT / "apps" / "ui" / "package.json").exists():
         return 0
     if shutil.which("npm") is None:
+        _seed_runtime_dist_from_tracked()
         return 0
 
     if not _ui_toolchain_ready():
         deps_code = _install_ui_dependencies()
         if deps_code != 0:
             print("UI dependency install failed; cannot build UI assets.")
+            if _seed_runtime_dist_from_tracked():
+                print("Using bundled UI dist fallback.")
+                return 0
             return deps_code
 
     source_hash = _ui_source_hash()
-    index_path = ROOT / "apps" / "ui" / "dist" / "index.html"
+    index_path = UI_RUNTIME_DIST_ROOT / "index.html"
     previous_hash = UI_BUILD_MARKER.read_text(encoding="utf-8").strip() if UI_BUILD_MARKER.exists() else ""
     if index_path.exists() and previous_hash == source_hash:
         return 0
@@ -242,6 +265,9 @@ def _ensure_ui_dist_current() -> int:
             print("npm ui:build returned 127. Repairing UI dependencies and retrying...")
             deps_code = _install_ui_dependencies()
             if deps_code != 0:
+                if _seed_runtime_dist_from_tracked():
+                    print("Using bundled UI dist fallback.")
+                    return 0
                 return deps_code
             _repair_vite_exec_bits()
             code = _run(["npm", "run", "ui:build"])
@@ -249,6 +275,9 @@ def _ensure_ui_dist_current() -> int:
             print("npm ui:build failed. Retrying via node + vite.js (permission-safe path)...")
             code = _run_ui_build_via_node()
     if code != 0:
+        if _seed_runtime_dist_from_tracked():
+            print("UI build failed; using bundled UI dist fallback.")
+            return 0
         print(
             "UI build failed. If you saw 'vite: Permission denied', run: "
             "chmod +x node_modules/.bin/vite apps/ui/node_modules/.bin/vite 2>/dev/null || true"
@@ -284,6 +313,25 @@ def _stack_running() -> bool:
     return gateway_ok or orchestrator_ok
 
 
+def _cleanup_generated_git_dist_changes() -> None:
+    subprocess.run(
+        ["git", "restore", "--worktree", "--staged", "apps/ui/dist/index.html"],
+        cwd=str(ROOT),
+        check=False,
+        env=_env_with_pythonpath(),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        ["git", "clean", "-fd", "apps/ui/dist/assets"],
+        cwd=str(ROOT),
+        check=False,
+        env=_env_with_pythonpath(),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
 def cmd_update() -> int:
     was_running = _stack_running()
     if was_running:
@@ -292,6 +340,7 @@ def cmd_update() -> int:
         if stop_code != 0:
             return stop_code
 
+    _cleanup_generated_git_dist_changes()
     print("Pulling latest changes...")
     pull_code = _run(["git", "pull", "--ff-only", "origin", "main"])
     if pull_code != 0:

@@ -11,5 +11,5 @@ def test_gateway_rejects_external_ui_dist_root_by_default(monkeypatch) -> None:
     import services.gateway.app.main as gateway_main
 
     reloaded = importlib.reload(gateway_main)
-    expected = (Path(reloaded.PROJECT_ROOT) / "apps" / "ui" / "dist").resolve()
+    expected = (Path(reloaded.PROJECT_ROOT) / "runtime" / "ui-dist").resolve()
     assert reloaded.UI_DIST_ROOT.resolve() == expected

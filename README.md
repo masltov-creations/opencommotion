@@ -30,13 +30,13 @@ One-line bootstrap (clone/update + setup):
 Linux/macOS/Git Bash/WSL shell:
 
 ```bash
-mkdir -p /home/$USER/apps && ( [ -d /home/$USER/apps/opencommotion/.git ] && git -C /home/$USER/apps/opencommotion pull --ff-only origin main || git clone https://github.com/masltov-creations/OpenCommotion /home/$USER/apps/opencommotion ) && cd /home/$USER/apps/opencommotion && bash scripts/setup.sh
+mkdir -p /home/$USER/apps && if [ -d /home/$USER/apps/opencommotion/.git ]; then git -C /home/$USER/apps/opencommotion restore --worktree --staged apps/ui/dist/index.html || true; git -C /home/$USER/apps/opencommotion clean -fd apps/ui/dist/assets || true; git -C /home/$USER/apps/opencommotion pull --ff-only origin main; else git clone https://github.com/masltov-creations/OpenCommotion /home/$USER/apps/opencommotion; fi && cd /home/$USER/apps/opencommotion && bash scripts/setup.sh
 ```
 
 PowerShell (calls into WSL):
 
 ```powershell
-wsl bash -lc 'mkdir -p ~/apps && ( [ -d ~/apps/opencommotion/.git ] && git -C ~/apps/opencommotion pull --ff-only origin main || git clone https://github.com/masltov-creations/OpenCommotion ~/apps/opencommotion ) && cd ~/apps/opencommotion && bash scripts/setup.sh'
+wsl bash -lc 'mkdir -p ~/apps && if [ -d ~/apps/opencommotion/.git ]; then git -C ~/apps/opencommotion restore --worktree --staged apps/ui/dist/index.html || true; git -C ~/apps/opencommotion clean -fd apps/ui/dist/assets || true; git -C ~/apps/opencommotion pull --ff-only origin main; else git clone https://github.com/masltov-creations/OpenCommotion ~/apps/opencommotion; fi && cd ~/apps/opencommotion && bash scripts/setup.sh'
 ```
 
 Important shell rule:
@@ -142,8 +142,7 @@ bash scripts/setup.sh
 If you see `vite: Permission denied` during setup/run in WSL, update and retry first:
 
 ```bash
-git pull --ff-only origin main
-bash scripts/setup.sh
+opencommotion update
 ```
 
 If it still fails on an older checkout:
@@ -252,13 +251,13 @@ Visual-intelligence scenario requirements and certification matrix:
 Linux/macOS/Git Bash/WSL shell:
 
 ```bash
-mkdir -p /home/$USER/apps && ( [ -d /home/$USER/apps/opencommotion/.git ] && git -C /home/$USER/apps/opencommotion pull --ff-only origin main || git clone https://github.com/masltov-creations/OpenCommotion /home/$USER/apps/opencommotion ) && cd /home/$USER/apps/opencommotion && bash scripts/setup.sh
+mkdir -p /home/$USER/apps && if [ -d /home/$USER/apps/opencommotion/.git ]; then git -C /home/$USER/apps/opencommotion restore --worktree --staged apps/ui/dist/index.html || true; git -C /home/$USER/apps/opencommotion clean -fd apps/ui/dist/assets || true; git -C /home/$USER/apps/opencommotion pull --ff-only origin main; else git clone https://github.com/masltov-creations/OpenCommotion /home/$USER/apps/opencommotion; fi && cd /home/$USER/apps/opencommotion && bash scripts/setup.sh
 ```
 
 PowerShell (calls into WSL):
 
 ```powershell
-wsl bash -lc 'mkdir -p ~/apps && ( [ -d ~/apps/opencommotion/.git ] && git -C ~/apps/opencommotion pull --ff-only origin main || git clone https://github.com/masltov-creations/OpenCommotion ~/apps/opencommotion ) && cd ~/apps/opencommotion && bash scripts/setup.sh'
+wsl bash -lc 'mkdir -p ~/apps && if [ -d ~/apps/opencommotion/.git ]; then git -C ~/apps/opencommotion restore --worktree --staged apps/ui/dist/index.html || true; git -C ~/apps/opencommotion clean -fd apps/ui/dist/assets || true; git -C ~/apps/opencommotion pull --ff-only origin main; else git clone https://github.com/masltov-creations/OpenCommotion ~/apps/opencommotion; fi && cd ~/apps/opencommotion && bash scripts/setup.sh'
 ```
 
 If you are already in a WSL shell (`user@host:~$`), do not run the `wsl ...` wrapper.

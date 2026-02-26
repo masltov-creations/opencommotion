@@ -110,6 +110,7 @@ Progress checklist:
 - [x] Prompt-probe required scenario baseline (A/B/C/D path expectations pass with seed set)
 - [x] V2 scene-state scaffolding: schema family, `/v2/*` API surface, deterministic op apply engine, scene snapshot endpoints
 - [x] Plan-tracking enforcement gate (CI check requires `PROJECT.md` sync on implementation changes)
+- [x] Local update resilience for generated UI dist conflicts (`runtime/ui-dist` runtime build path + pull-safe update flow)
 - [ ] Long-haul soak/recovery evidence in production-like environment
 - [ ] Final production readiness sign-off
 
@@ -211,3 +212,4 @@ Change log:
 - 2026-02-26: Formalized interruption-safe checkpoint format in `PROJECT.md` so every in-flight task captures planned/done/in-progress/remaining for handoff continuity.
 - 2026-02-26: Hardened LLM invocation context for narration/rewrite (explicit runtime contract + capability-aware context + forced-progress handling for clarification/refusal responses) and added unit tests for CLI provider wrapper behavior.
 - 2026-02-26: Completed full validation gate (`test-complete`) plus fresh-agent consumer E2E (`fresh-agent-e2e`) after context-hardening changes; both passed on this branch.
+- 2026-02-26: Moved runtime UI build output to `runtime/ui-dist` (untracked), added gateway/dev-start fallback to bundled dist, hardened `opencommotion update` to clean generated tracked dist churn, and updated bootstrap instructions to avoid pull failures from local generated assets.

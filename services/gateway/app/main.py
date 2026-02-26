@@ -134,7 +134,7 @@ def _resolve_runtime_path(env_key: str, default_path: Path) -> Path:
 
 
 VOICE_AUDIO_ROOT = _resolve_runtime_path("OPENCOMMOTION_AUDIO_ROOT", PROJECT_ROOT / "data" / "audio")
-UI_DIST_ROOT = _resolve_runtime_path("OPENCOMMOTION_UI_DIST_ROOT", PROJECT_ROOT / "apps" / "ui" / "dist")
+UI_DIST_ROOT = _resolve_runtime_path("OPENCOMMOTION_UI_DIST_ROOT", PROJECT_ROOT / "runtime" / "ui-dist")
 SCENE_V2_ROOT = _resolve_runtime_path("OPENCOMMOTION_SCENE_V2_ROOT", PROJECT_ROOT / "runtime" / "scenes")
 VOICE_AUDIO_ROOT.mkdir(parents=True, exist_ok=True)
 SCENE_V2_ROOT.mkdir(parents=True, exist_ok=True)
@@ -1285,5 +1285,11 @@ async def control_agent_run(run_id: str, req: AgentRunControlRequest) -> dict:
     return {"ok": True, "run": run}
 
 
-if (UI_DIST_ROOT / "index.html").exists():
-    app.mount("/", StaticFiles(directory=str(UI_DIST_ROOT), html=True), name="opencommotion-ui")
+UI_STATIC_ROOT = UI_DIST_ROOT
+if not (UI_STATIC_ROOT / "index.html").exists():
+    fallback_ui_dist = (PROJECT_ROOT / "apps" / "ui" / "dist").resolve()
+    if fallback_ui_dist != UI_STATIC_ROOT.resolve() and (fallback_ui_dist / "index.html").exists():
+        UI_STATIC_ROOT = fallback_ui_dist
+
+if (UI_STATIC_ROOT / "index.html").exists():
+    app.mount("/", StaticFiles(directory=str(UI_STATIC_ROOT), html=True), name="opencommotion-ui")

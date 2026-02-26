@@ -20,6 +20,8 @@ runtime/logs/
 runtime/agent-runs/*.pid
 runtime/agent-runs/*.tmp
 runtime/prompt-probe/*.json
+runtime/ui-dist/
+runtime/scenes/
 .cache/pw-deps/
 
 # Data artifacts

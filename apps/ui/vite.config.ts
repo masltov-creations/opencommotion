@@ -6,6 +6,7 @@ import { resolve } from 'node:path'
 const uiPackageJson = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8')) as { version?: string }
 const rootPackageJson = JSON.parse(readFileSync(resolve(__dirname, '../../package.json'), 'utf-8')) as { version?: string }
 const uiVersion = rootPackageJson.version || uiPackageJson.version || '0.0.0'
+const uiOutDir = (process.env.OPENCOMMOTION_UI_BUILD_OUT_DIR || '').trim() || '../../runtime/ui-dist'
 
 let uiRevision = 'dev'
 try {
@@ -22,6 +23,10 @@ export default defineConfig({
   define: {
     __OPENCOMMOTION_UI_VERSION__: JSON.stringify(uiVersion),
     __OPENCOMMOTION_UI_REVISION__: JSON.stringify(uiRevision || 'dev'),
+  },
+  build: {
+    outDir: uiOutDir,
+    emptyOutDir: true,
   },
   server: {
     host: '127.0.0.1',

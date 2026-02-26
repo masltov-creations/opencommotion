@@ -22,7 +22,7 @@ def _normalize_path_overrides(values: dict[str, str]) -> bool:
         return False
 
     defaults = {
-        "OPENCOMMOTION_UI_DIST_ROOT": ROOT / "apps" / "ui" / "dist",
+        "OPENCOMMOTION_UI_DIST_ROOT": ROOT / "runtime" / "ui-dist",
         "OPENCOMMOTION_AUDIO_ROOT": ROOT / "data" / "audio",
         "ARTIFACT_DB_PATH": ROOT / "data" / "artifacts" / "artifacts.db",
         "ARTIFACT_BUNDLE_ROOT": ROOT / "data" / "artifacts" / "bundles",
@@ -52,6 +52,26 @@ def main() -> int:
 
     values = parse_env(ENV_PATH)
     changed = False
+
+    ui_dist_raw = values.get("OPENCOMMOTION_UI_DIST_ROOT", "").strip()
+    legacy_ui_dist = (ROOT / "apps" / "ui" / "dist").resolve()
+    runtime_ui_dist_rel = "runtime/ui-dist"
+    runtime_ui_dist_abs = (ROOT / runtime_ui_dist_rel).resolve()
+    if not ui_dist_raw:
+        values["OPENCOMMOTION_UI_DIST_ROOT"] = runtime_ui_dist_rel
+        changed = True
+    else:
+        candidate = Path(ui_dist_raw).expanduser()
+        if not candidate.is_absolute():
+            candidate = (ROOT / candidate).resolve()
+        else:
+            candidate = candidate.resolve()
+        if candidate == legacy_ui_dist:
+            values["OPENCOMMOTION_UI_DIST_ROOT"] = runtime_ui_dist_rel
+            changed = True
+        elif candidate == runtime_ui_dist_abs and ui_dist_raw != runtime_ui_dist_rel:
+            values["OPENCOMMOTION_UI_DIST_ROOT"] = runtime_ui_dist_rel
+            changed = True
 
     if _normalize_path_overrides(values):
         changed = True

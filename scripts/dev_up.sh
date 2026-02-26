@@ -94,6 +94,18 @@ if [ -f .env ]; then
   done < .env
 fi
 
+if [ "$UI_MODE" = "dist" ]; then
+  UI_DIST_ROOT_EFFECTIVE="${OPENCOMMOTION_UI_DIST_ROOT:-runtime/ui-dist}"
+  if [[ "$UI_DIST_ROOT_EFFECTIVE" != /* ]]; then
+    UI_DIST_ROOT_EFFECTIVE="$ROOT/$UI_DIST_ROOT_EFFECTIVE"
+  fi
+  if [ ! -f "$UI_DIST_ROOT_EFFECTIVE/index.html" ] && [ -f "$ROOT/apps/ui/dist/index.html" ]; then
+    export OPENCOMMOTION_UI_DIST_ROOT="$ROOT/apps/ui/dist"
+    UI_DIST_ROOT_EFFECTIVE="$ROOT/apps/ui/dist"
+    echo "Using bundled UI dist fallback: $UI_DIST_ROOT_EFFECTIVE"
+  fi
+fi
+
 if [ ! -x .venv/bin/python ]; then
   python3 -m venv .venv
 fi
@@ -123,8 +135,14 @@ if [ "$UI_MODE" = "dev" ] && [ -f apps/ui/package.json ]; then
   )
 fi
 
-if [ "$UI_MODE" = "dist" ] && [ ! -f apps/ui/dist/index.html ]; then
-  echo "Warning: apps/ui/dist/index.html not found. Build UI assets with: npm run ui:build" >&2
+if [ "$UI_MODE" = "dist" ]; then
+  UI_DIST_ROOT_EFFECTIVE="${OPENCOMMOTION_UI_DIST_ROOT:-runtime/ui-dist}"
+  if [[ "$UI_DIST_ROOT_EFFECTIVE" != /* ]]; then
+    UI_DIST_ROOT_EFFECTIVE="$ROOT/$UI_DIST_ROOT_EFFECTIVE"
+  fi
+  if [ ! -f "$UI_DIST_ROOT_EFFECTIVE/index.html" ]; then
+    echo "Warning: UI dist not found at $UI_DIST_ROOT_EFFECTIVE/index.html. Build UI assets with: npm run ui:build" >&2
+  fi
 fi
 
 if ! wait_for_url "http://127.0.0.1:$GATEWAY_PORT/health" 30; then
