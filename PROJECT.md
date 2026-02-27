@@ -4,7 +4,7 @@ Updated: 2026-02-26
 
 Current status:
 - Overall project status: in progress
-- Verification stream status: complete for this pass
+- Verification stream status: complete for this pass; next stream started
 - Latest verification evidence:
   - `python3 scripts/opencommotion.py test-complete` (pass)
   - `python3 scripts/opencommotion.py fresh-agent-e2e` (pass)
@@ -16,7 +16,7 @@ Progress checklist:
 - [x] Runtime UI dist move to untracked path (`runtime/ui-dist`) to avoid pull conflicts
 - [x] Pull/update flow hardened for generated dist churn (`opencommotion update` path)
 - [x] Full automated verification gate on this branch
-- [ ] Final production soak/recovery evidence in target environment
+- [ ] Final production soak/recovery evidence in target environment (dev soak/recovery evidence refreshed)
 - [ ] Final production readiness sign-off
 
 Active tasks:
@@ -31,6 +31,9 @@ Active tasks:
    - refreshed this file to interruption-safe checkpoint format
    - fixed `test-e2e`/`test-complete` port-conflict behavior by making browser E2E auto-stop a running stack and restore it afterward
    - validated with `python3 scripts/opencommotion.py test-e2e` (pass)
+   - started next stream (soak/recovery evidence refresh) and executed:
+     - `.venv/bin/python -m pytest -q -s tests/integration/test_agent_runtime_recovery_and_concurrency.py -k "handles_ten or restart"` (2 passed)
+     - `.venv/bin/python -m pytest -q -s tests/integration/test_gateway_v2_scene_state.py -k "followup_bloop or revision_conflict"` (2 passed)
  - in progress / not finished:
    - none for current stream
  - remaining:
@@ -42,3 +45,4 @@ Change log:
 - 2026-02-26: Closed runtime update/pull conflict class by routing runtime UI build output to `runtime/ui-dist` and preserving fallback to bundled dist.
 - 2026-02-26: Re-synchronized `PROJECT.md` with required interruption-safe tracking format (`planned`, `done in this session`, `in progress / not finished`, `remaining`).
 - 2026-02-26: Updated CLI E2E flow to auto-handle active stack state (temporary stop + automatic restore) so `test-complete` no longer fails due to port 8000 conflicts when a stack is already running.
+- 2026-02-27: Continued into next stream after wrap-up by refreshing soak/recovery integration evidence in dev environment; production-target soak evidence remains pending.
