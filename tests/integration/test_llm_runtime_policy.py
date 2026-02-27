@@ -79,11 +79,12 @@ def test_orchestrate_fails_without_llm_fallback_when_provider_unavailable(tmp_pa
 
 
 def test_orchestrate_works_with_codex_cli_provider(tmp_path, monkeypatch) -> None:
-    fake_codex = tmp_path / "fake-codex"
+    fake_codex = tmp_path / "fake-codex.py"
     _write_executable(
         fake_codex,
-        """#!/usr/bin/env bash
-echo '{"type":"item.completed","item":{"type":"agent_message","text":"codex e2e reply"}}'
+        """#!/usr/bin/env python3
+import json
+print(json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": "codex e2e reply"}}))
 """,
     )
     monkeypatch.setenv("OPENCOMMOTION_LLM_PROVIDER", "codex-cli")
@@ -99,11 +100,12 @@ echo '{"type":"item.completed","item":{"type":"agent_message","text":"codex e2e 
 
 
 def test_orchestrate_works_with_openclaw_cli_provider(tmp_path, monkeypatch) -> None:
-    fake_openclaw = tmp_path / "fake-openclaw"
+    fake_openclaw = tmp_path / "fake-openclaw.py"
     _write_executable(
         fake_openclaw,
-        """#!/usr/bin/env bash
-echo '{"payloads":[{"text":"openclaw e2e reply"}]}'
+        """#!/usr/bin/env python3
+import json
+print(json.dumps({"payloads": [{"text": "openclaw e2e reply"}]}))
 """,
     )
     monkeypatch.setenv("OPENCOMMOTION_LLM_PROVIDER", "openclaw-cli")

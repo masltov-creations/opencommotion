@@ -37,9 +37,18 @@ ORCHESTRATE_LATENCY = Histogram(
     buckets=(0.05, 0.1, 0.2, 0.5, 1.0, 2.5, 5.0, 10.0, 20.0),
 )
 
+class OrchestrateContext(BaseModel):
+    scene_brief: str | None = None
+    capability_brief: str | None = None
+    turn_phase: str | None = None
+    system_prompt_override: str | None = None
+    entity_details: list[dict[str, str]] | None = None
+
+
 class OrchestrateRequest(BaseModel):
     session_id: str
     prompt: str
+    context: OrchestrateContext | None = None
 
 
 class RuntimeConfigApplyRequest(BaseModel):
@@ -97,7 +106,7 @@ def orchestrate(req: OrchestrateRequest) -> dict:
     started = perf_counter()
 
     try:
-        text = generate_text_response(req.prompt)
+        text = generate_text_response(req.prompt, context=req.context)
     except LLMEngineError as exc:
         raise HTTPException(
             status_code=503,
@@ -107,7 +116,7 @@ def orchestrate(req: OrchestrateRequest) -> dict:
                 "message": str(exc),
             },
         ) from exc
-    strokes = generate_visual_strokes(req.prompt)
+    strokes = generate_visual_strokes(req.prompt, context=req.context)
     try:
         voice = synthesize_segments(text)
     except VoiceEngineError as exc:

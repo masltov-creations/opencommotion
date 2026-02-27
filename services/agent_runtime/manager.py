@@ -27,6 +27,7 @@ class AgentRunManager:
         db_path: Path,
         turn_executor: RunTurnExecutor,
         event_emitter: RunEventEmitter,
+        max_concurrent_turns: int = 3,
     ) -> None:
         self.db_path = db_path
         self.turn_executor = turn_executor
@@ -34,6 +35,8 @@ class AgentRunManager:
         self._lock = asyncio.Lock()
         self._wake = asyncio.Event()
         self._worker: asyncio.Task | None = None
+        self._max_concurrent_turns = max(1, max_concurrent_turns)
+        self._active_tasks: set[asyncio.Task[None]] = set()
         self._init_db()
 
     async def start(self) -> None:
@@ -49,11 +52,17 @@ class AgentRunManager:
         if task is None:
             return
         task.cancel()
+        self._wake.set()
         try:
             await task
         except asyncio.CancelledError:
             pass
         self._worker = None
+        if self._active_tasks:
+            for active in list(self._active_tasks):
+                active.cancel()
+            await asyncio.gather(*self._active_tasks, return_exceptions=True)
+            self._active_tasks.clear()
 
     def _conn(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
@@ -254,11 +263,16 @@ class AgentRunManager:
         while True:
             await self._wake.wait()
             self._wake.clear()
-            while True:
+            while len(self._active_tasks) < self._max_concurrent_turns:
                 item = self._claim_next_queue_item(auto_only=True)
                 if item is None:
                     break
-                await self._process_queue_item(item)
+                task = asyncio.create_task(self._process_queue_item(item))
+                self._active_tasks.add(task)
+                task.add_done_callback(self._handle_task_done)
+            if not self._active_tasks:
+                continue
+            await asyncio.wait(self._active_tasks.copy(), return_when=asyncio.FIRST_COMPLETED)
 
     def _claim_next_queue_item(self, auto_only: bool) -> QueueItem | None:
         with self._conn() as conn:
@@ -417,6 +431,14 @@ class AgentRunManager:
             },
         )
         await self._emit_run_state(item.run_id, reason="turn_completed")
+        self._wake.set()
+
+    def _handle_task_done(self, task: asyncio.Task[None]) -> None:
+        self._active_tasks.discard(task)
+        try:
+            task.exception()
+        except asyncio.CancelledError:
+            pass
         self._wake.set()
 
     def _set_run_status(self, run_id: str, status: str) -> None:

@@ -4,6 +4,7 @@ import hashlib
 import os
 import random
 import re
+from typing import Any
 
 COLOR_MAP = {
     "black": "#111827",
@@ -290,12 +291,54 @@ def _wants_fish_actor_scene(prompt: str) -> bool:
     return _draw_intent(prompt) or "swim" in prompt or "swimming" in prompt
 
 
+def _context_field(context: Any, name: str) -> str | None:
+    if context is None:
+        return None
+    if isinstance(context, dict):
+        value = context.get(name)
+    else:
+        value = getattr(context, name, None)
+    if isinstance(value, str):
+        value = value.strip()
+    return value
+
+
+def _context_entity_ids(context: Any) -> list[str]:
+    if isinstance(context, dict):
+        raw = context.get("entity_details")
+    else:
+        raw = getattr(context, "entity_details", None)
+    if not isinstance(raw, list):
+        return []
+    result: list[str] = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        candidate = entry.get("id")
+        if isinstance(candidate, str) and candidate.strip():
+            result.append(candidate.strip())
+    return result
+
+
 def _render_mode(prompt: str) -> str:
     if "3d" in prompt or "three-dimensional" in prompt or "refraction" in prompt or "volumetric" in prompt:
         return "3d"
     if "2d" in prompt or "stylized layers" in prompt or "parallax" in prompt:
         return "2d"
     return "2d"
+
+
+def _render_mode_from_context(prompt: str, context: Any) -> str:
+    capability = _context_field(context, "capability_brief")
+    if isinstance(capability, str):
+        match = re.search(r"renderer=([^;\s]+)", capability)
+        if match:
+            renderer = match.group(1).lower()
+            if "3d" in renderer or "three" in renderer:
+                return "3d"
+            if "2d" in renderer or "svg" in renderer:
+                return "2d"
+    return _render_mode(prompt)
 
 
 def _wants_market_growth_scene(prompt: str) -> bool:
@@ -687,7 +730,7 @@ def _build_palette_script_strokes(prompt: str, mode: str) -> list[dict]:
     ]
 
 
-def generate_visual_strokes(prompt: str) -> list[dict]:
+def generate_visual_strokes(prompt: str, context: Any | None = None) -> list[dict]:
     p = prompt.lower()
     market_growth_scene = _wants_market_growth_scene(p)
     day_night_scene = _wants_day_night_scene(p)
@@ -696,7 +739,9 @@ def generate_visual_strokes(prompt: str) -> list[dict]:
     fish_scene = _wants_fish_scene(p)
     fish_actor_scene = _wants_fish_actor_scene(p)
     legacy_template_scenes = _legacy_template_scenes_enabled()
-    mode = _render_mode(p)
+    mode = _render_mode_from_context(p, context)
+    follow_up = _context_field(context, "turn_phase") == "follow-up"
+    existing_entity_ids = _context_entity_ids(context)
     strokes: list[dict] = []
 
     if legacy_template_scenes and "moonwalk" in p:
@@ -1075,6 +1120,23 @@ def generate_visual_strokes(prompt: str) -> list[dict]:
         # Always produce a visual scene for non-empty prompts, even when the user did not use draw verbs.
         strokes.extend(_build_palette_script_strokes(prompt=p, mode=mode))
 
+    if follow_up and existing_entity_ids:
+        strokes.append(
+            {
+                "stroke_id": "context-followup-motion",
+                "kind": "setActorMotion",
+                "params": {
+                    "actor_id": existing_entity_ids[0],
+                    "motion": {
+                        "name": "context-followup-nudge",
+                        "loop": True,
+                        "duration_ms": 2000,
+                        "path_points": [[0, 0], [10, 4], [-10, -4], [0, 0]],
+                    },
+                },
+                "timing": {"start_ms": 100, "duration_ms": 2000, "easing": "easeInOutSine"},
+            }
+        )
     if strokes:
         strokes.append(
             {

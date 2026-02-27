@@ -54,7 +54,32 @@ class LLMEngineError(RuntimeError):
         return self.message
 
 
-def generate_text_response(prompt: str) -> str:
+def _context_field(context: Any, name: str) -> str | None:
+    if context is None:
+        return None
+    if isinstance(context, dict):
+        value = context.get(name)
+        return str(value).strip() if isinstance(value, str) and value.strip() else None
+    value = getattr(context, name, None)
+    if isinstance(value, str):
+        value = value.strip()
+    return value
+
+
+def _build_contextual_invocation(scene_brief: str | None, capability_brief: str | None, turn_phase: str | None) -> str:
+    parts: list[str] = []
+    if turn_phase:
+        parts.append(f"Turn phase: {turn_phase}")
+    if scene_brief:
+        parts.append(f"Scene state: {scene_brief}")
+    if capability_brief:
+        parts.append(f"Capabilities: {capability_brief}")
+    base = _default_invocation_context()
+    parts.append(base)
+    return "\n".join(parts)
+
+
+def generate_text_response(prompt: str, context: Any | None = None) -> str:
     cleaned = prompt.strip()
     if not cleaned:
         return "OpenCommotion: I need a prompt to generate a synchronized text, voice, and visual response."
@@ -63,13 +88,17 @@ def generate_text_response(prompt: str) -> str:
     adapters = build_adapters(timeout_s=_timeout_s())
     heuristic = adapters["heuristic"]
     selected = adapters.get(provider, heuristic)
-    invocation_context = _default_invocation_context()
+    scene_brief = _context_field(context, "scene_brief")
+    capability_brief = _context_field(context, "capability_brief")
+    turn_phase = _context_field(context, "turn_phase")
+    invocation_context = _build_contextual_invocation(scene_brief, capability_brief, turn_phase)
     request_prompt = cleaned
     if _narration_context_enabled() and provider != "heuristic":
         request_prompt = _build_narration_request(cleaned, invocation_context)
+    system_prompt_override = _context_field(context, "system_prompt_override")
 
     try:
-        generated = selected.generate(request_prompt)
+        generated = selected.generate(request_prompt, system_prompt_override=system_prompt_override)
     except AdapterError as exc:
         if _allow_fallback():
             return _normalize_response(heuristic.generate(cleaned))

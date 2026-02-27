@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -32,6 +33,24 @@ OPENCLAW_OPENAI_MODEL_ENV = "OPENCOMMOTION_OPENCLAW_OPENAI_MODEL"
 CLI_RETRIES_ENV = "OPENCOMMOTION_LLM_CLI_RETRIES"
 
 
+def _resolve_binary(configured: str | None) -> str | None:
+    candidate = (configured or "").strip()
+    if not candidate:
+        return None
+    resolved = shutil.which(candidate)
+    if resolved:
+        return resolved
+    if os.path.isabs(candidate) and os.path.isfile(candidate):
+        return candidate
+    return None
+
+
+def _cli_invocation(binary: str, args: list[str]) -> list[str]:
+    invocation = [sys.executable, binary] if binary.lower().endswith(".py") else [binary]
+    invocation.extend(args)
+    return invocation
+
+
 @dataclass
 class AdapterError(RuntimeError):
     provider: str
@@ -44,7 +63,7 @@ class AdapterError(RuntimeError):
 class TextProviderAdapter(Protocol):
     name: str
 
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str, *, system_prompt_override: str | None = None) -> str:
         ...
 
     def capabilities(self, probe: bool = False) -> dict[str, Any]:
@@ -210,7 +229,7 @@ def _provider_probe_version(command: list[str], timeout_s: float) -> tuple[bool,
 class HeuristicAdapter:
     name: str = "heuristic"
 
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str, *, system_prompt_override: str | None = None) -> str:
         return f"{prompt}. I will explain this with concise narration and synchronized visuals."
 
     def capabilities(self, probe: bool = False) -> dict[str, Any]:
@@ -228,14 +247,14 @@ class OllamaAdapter:
     def _model(self) -> str:
         return _model("qwen2.5:7b-instruct")
 
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str, *, system_prompt_override: str | None = None) -> str:
         model = self._model()
         if not model:
             raise AdapterError(provider=self.name, message=f"Missing {LLM_MODEL_ENV} for ollama provider")
         payload = {
             "model": model,
             "prompt": prompt,
-            "system": _system_prompt(),
+            "system": system_prompt_override or _system_prompt(),
             "stream": False,
         }
         try:
@@ -295,7 +314,7 @@ class OpenAICompatibleAdapter:
     def _model(self) -> str:
         return _model("Qwen/Qwen2.5-7B-Instruct")
 
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str, *, system_prompt_override: str | None = None) -> str:
         model = self._model()
         if not model:
             raise AdapterError(provider=self.name, message=f"Missing {LLM_MODEL_ENV} for {self.name} provider")
@@ -307,7 +326,7 @@ class OpenAICompatibleAdapter:
             "model": model,
             "temperature": 0.4,
             "messages": [
-                {"role": "system", "content": _system_prompt()},
+                {"role": "system", "content": system_prompt_override or _system_prompt()},
                 {"role": "user", "content": prompt},
             ],
         }
@@ -368,8 +387,7 @@ class CodexCliAdapter:
         return os.getenv(CODEX_BIN_ENV, "codex").strip() or "codex"
 
     def _resolved_bin(self) -> str | None:
-        configured = self._bin()
-        return shutil.which(configured) or configured if configured.startswith("/") else shutil.which(configured)
+        return _resolve_binary(self._bin())
 
     def _model(self) -> str:
         return os.getenv(CODEX_MODEL_ENV, "").strip()
@@ -377,17 +395,20 @@ class CodexCliAdapter:
     def _timeout(self) -> float:
         return _timeout_s(CODEX_TIMEOUT_ENV, self.timeout_s)
 
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str, *, system_prompt_override: str | None = None) -> str:
         binary = self._resolved_bin()
         if not binary:
             raise AdapterError(provider=self.name, message=f"{self._bin()} is not installed or not in PATH")
-        command = [binary, "exec", "--ephemeral", "--json"]
+        args = ["exec", "--ephemeral", "--json"]
         model = self._model()
         if model:
-            command.extend(["--model", model])
-        command.append(prompt)
+            args.extend(["--model", model])
+        prompt_payload = prompt
+        if system_prompt_override:
+            prompt_payload = f"{system_prompt_override}\n{prompt}"
+        args.append(prompt_payload)
         completed = _run_cli(
-            command=command,
+            command=_cli_invocation(binary, args),
             timeout_s=self._timeout(),
             retries=_cli_retries(),
             provider=self.name,
@@ -408,7 +429,7 @@ class CodexCliAdapter:
             "error": "" if binary else "binary_not_found",
         }
         if probe and binary:
-            ok, detail = _provider_probe_version([binary, "--version"], timeout_s=min(self._timeout(), 5.0))
+            ok, detail = _provider_probe_version(_cli_invocation(binary, ["--version"]), timeout_s=min(self._timeout(), 5.0))
             if ok:
                 state["version"] = detail
             else:
@@ -426,8 +447,7 @@ class OpenClawCliAdapter:
         return os.getenv(OPENCLAW_BIN_ENV, "openclaw").strip() or "openclaw"
 
     def _resolved_bin(self) -> str | None:
-        configured = self._bin()
-        return shutil.which(configured) or configured if configured.startswith("/") else shutil.which(configured)
+        return _resolve_binary(self._bin())
 
     def _session_prefix(self) -> str:
         return os.getenv(OPENCLAW_SESSION_PREFIX_ENV, "opencommotion-turn").strip() or "opencommotion-turn"
@@ -435,23 +455,22 @@ class OpenClawCliAdapter:
     def _timeout(self) -> float:
         return _timeout_s(OPENCLAW_TIMEOUT_ENV, self.timeout_s)
 
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str, *, system_prompt_override: str | None = None) -> str:
         binary = self._resolved_bin()
         if not binary:
             raise AdapterError(provider=self.name, message=f"{self._bin()} is not installed or not in PATH")
         session_id = f"{self._session_prefix()}-{uuid4()}"
-        command = [
-            binary,
+        args = [
             "agent",
             "--local",
             "--json",
             "--session-id",
             session_id,
             "--message",
-            prompt,
+            f"{system_prompt_override + '\n' if system_prompt_override else ''}{prompt}",
         ]
         completed = _run_cli(
-            command=command,
+            command=_cli_invocation(binary, args),
             timeout_s=self._timeout(),
             retries=_cli_retries(),
             provider=self.name,
@@ -472,7 +491,7 @@ class OpenClawCliAdapter:
             "error": "" if binary else "binary_not_found",
         }
         if probe and binary:
-            ok, detail = _provider_probe_version([binary, "--version"], timeout_s=min(self._timeout(), 5.0))
+            ok, detail = _provider_probe_version(_cli_invocation(binary, ["--version"]), timeout_s=min(self._timeout(), 5.0))
             if ok:
                 state["version"] = detail
             else:

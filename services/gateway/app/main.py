@@ -6,6 +6,7 @@ import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from threading import Lock
 from time import perf_counter
 from typing import Any
 from uuid import uuid4
@@ -58,6 +59,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "http://127.0.0.1:8001")
 AGENT_RUN_DB_PATH = Path(
     os.getenv("OPENCOMMOTION_AGENT_RUN_DB_PATH", str(PROJECT_ROOT / "runtime" / "agent-runs" / "agent_manager.db"))
+)
+AGENT_RUN_MAX_CONCURRENT_TURNS = max(
+    1,
+    int(os.getenv("OPENCOMMOTION_AGENT_RUN_MAX_CONCURRENT_TURNS", "3")),
 )
 ORCHESTRATOR_REQUEST_TIMEOUT_S = float(os.getenv("OPENCOMMOTION_ORCHESTRATOR_TIMEOUT_S", "20"))
 ORCHESTRATOR_REQUEST_MAX_ATTEMPTS = max(1, int(os.getenv("OPENCOMMOTION_ORCHESTRATOR_MAX_ATTEMPTS", "3")))
@@ -356,6 +361,8 @@ ws_manager_v2 = WsManager()
 scene_store_v2 = SceneV2Store(SCENE_V2_ROOT)
 scene_policy_v2 = default_policy()
 _run_manager: AgentRunManager | None = None
+_SESSION_CONTEXT_LOCK = Lock()
+_SESSION_CONTEXT_CACHE: dict[str, dict[str, Any]] = {}
 
 
 @app.middleware("http")
@@ -462,16 +469,24 @@ async def _post_orchestrator_with_retry(path: str, payload: dict, timeout_s: flo
     raise last_exc
 
 
-async def _execute_turn(session_id: str, prompt: str, source: str, *, broadcast_event: bool = True) -> dict:
+async def _execute_turn(
+    session_id: str,
+    prompt: str,
+    source: str,
+    *,
+    broadcast_event: bool = True,
+    reminder_prompt: str | None = None,
+) -> dict:
     if len(prompt) > 4000:
         raise HTTPException(status_code=422, detail={"error": "prompt_too_long", "max_chars": 4000})
 
     started = perf_counter()
     request_timeout_s = _orchestrator_turn_timeout_s()
+    context = _build_orchestrate_context(session_id=session_id, prompt=prompt, source=source, reminder_prompt=reminder_prompt)
     try:
         resp = await _post_orchestrator_with_retry(
             path="/v1/orchestrate",
-            payload={"session_id": session_id, "prompt": prompt},
+            payload={"session_id": session_id, "prompt": prompt, "context": context},
             timeout_s=request_timeout_s,
         )
         result = resp.json()
@@ -520,6 +535,7 @@ async def _execute_turn(session_id: str, prompt: str, source: str, *, broadcast_
     _validate_orchestrator_payload(result)
 
     visual_strokes = result.get("visual_strokes", [])
+    _update_session_context(session_id=session_id, prompt=prompt, strokes=visual_strokes, source=source)
     patches = compile_brush_batch(visual_strokes)
     quality_report: dict | None = None
     if _looks_like_market_growth_prompt(prompt):
@@ -694,6 +710,110 @@ def _scene_context_expanded(scene: dict[str, Any], scene_id: str, revision: int)
     return "\n".join(lines)
 
 
+def _default_scene_brief(session_id: str) -> str:
+    return f"session={session_id}; turn=0; entity_count=0; strokes=0"
+
+
+def _describe_scene_brief(
+    session_id: str,
+    prompt: str,
+    entity_details: list[dict[str, str]],
+    strokes: int,
+    turn_phase: str,
+) -> str:
+    preview = _preview_prompt(prompt, 120)
+    entity_tokens = ",".join(entry["id"] for entry in entity_details[:4]) if entity_details else "none"
+    return (
+        f"session={session_id}; phase={turn_phase}; preview={preview}; "
+        f"entities={entity_tokens}; entity_count={len(entity_details)}; strokes={strokes}"
+    )
+
+
+def _capability_brief(source: str) -> str:
+    provider = os.getenv("OPENCOMMOTION_LLM_PROVIDER", "heuristic").strip() or "heuristic"
+    model = os.getenv("OPENCOMMOTION_LLM_MODEL", "").strip() or "default"
+    return f"source={source}; provider={provider}; model={model}"
+
+
+def _extract_entity_id_from_stroke(stroke: dict[str, Any]) -> str | None:
+    params = stroke.get("params")
+    if isinstance(params, dict):
+        for candidate in ("actor_id", "target_id", "entity_id", "source_id"):
+            raw = params.get(candidate)
+            if isinstance(raw, str) and raw.strip():
+                return raw.strip()
+        program = params.get("program")
+        if isinstance(program, dict):
+            commands = program.get("commands")
+            if isinstance(commands, list):
+                for command in commands:
+                    if not isinstance(command, dict):
+                        continue
+                    candidate = command.get("target_id") or command.get("actor_id")
+                    if isinstance(candidate, str) and candidate.strip():
+                        return candidate.strip()
+    return None
+
+
+def _extract_entity_details_from_strokes(strokes: list[dict[str, Any]]) -> list[dict[str, str]]:
+    details: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for stroke in strokes:
+        entity_id = _extract_entity_id_from_stroke(stroke)
+        if not entity_id or entity_id in seen:
+            continue
+        seen.add(entity_id)
+        details.append({"id": entity_id, "kind": str(stroke.get("kind", "unknown"))})
+        if len(details) >= 8:
+            break
+    return details
+
+
+def _build_orchestrate_context(
+    session_id: str,
+    prompt: str,
+    *,
+    source: str,
+    reminder_prompt: str | None = None,
+) -> dict[str, Any]:
+    with _SESSION_CONTEXT_LOCK:
+        state = _SESSION_CONTEXT_CACHE.setdefault(
+            session_id,
+            {"turns": 0, "entity_details": [], "scene_brief": "", "capability_brief": ""},
+        )
+        first_turn = state.get("turns", 0) == 0
+        scene_brief = state.get("scene_brief") or _default_scene_brief(session_id)
+        capability_brief = _capability_brief(source)
+        context = {
+            "scene_brief": scene_brief,
+            "capability_brief": capability_brief,
+            "turn_phase": "first-turn" if first_turn else "follow-up",
+            "entity_details": list(state.get("entity_details", [])),
+        }
+    if reminder_prompt:
+        context["system_prompt_override"] = reminder_prompt
+    return context
+
+
+def _update_session_context(session_id: str, prompt: str, strokes: list[dict[str, Any]], *, source: str) -> None:
+    entity_details = _extract_entity_details_from_strokes(strokes)
+    with _SESSION_CONTEXT_LOCK:
+        state = _SESSION_CONTEXT_CACHE.setdefault(
+            session_id,
+            {"turns": 0, "entity_details": [], "scene_brief": "", "capability_brief": ""},
+        )
+        state["turns"] = state.get("turns", 0) + 1
+        turn_phase = "first-turn" if state["turns"] == 1 else "follow-up"
+        state["entity_details"] = entity_details
+        state["scene_brief"] = _describe_scene_brief(session_id, prompt, entity_details, len(strokes), turn_phase)
+        state["capability_brief"] = _capability_brief(source)
+
+
+def _reset_session_context_cache() -> None:
+    with _SESSION_CONTEXT_LOCK:
+        _SESSION_CONTEXT_CACHE.clear()
+
+
 def _resolve_orchestration_prompt_v2(
     *,
     req: OrchestrateV2Request,
@@ -823,6 +943,7 @@ async def _execute_turn_v2(req: OrchestrateV2Request) -> dict[str, Any]:
             session_id=req.session_id,
             prompt=reminder_prompt,
             source="api-v2-reminder",
+            reminder_prompt=reminder_prompt,
             broadcast_event=False,
         )
         reminder_patches = list(reminded_turn.get("visual_patches", []))
@@ -892,6 +1013,7 @@ def _get_run_manager() -> AgentRunManager:
             db_path=AGENT_RUN_DB_PATH,
             turn_executor=lambda session_id, prompt: _execute_turn(session_id=session_id, prompt=prompt, source="agent-run"),
             event_emitter=_emit_agent_runtime_event,
+            max_concurrent_turns=AGENT_RUN_MAX_CONCURRENT_TURNS,
         )
     return _run_manager
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from typing import Any
 
 from services.artifact_registry.opencommotion_artifacts.registry import ArtifactRegistry
 from services.gateway.app import main as gateway_main
@@ -162,7 +163,7 @@ def test_v2_runtime_capabilities_includes_limits_and_recipes(tmp_path, monkeypat
 
 
 def test_v2_turn_without_visual_delta_emits_agent_context_reminder(tmp_path, monkeypatch) -> None:
-    def no_visual_worker(_prompt: str) -> list[dict]:
+    def no_visual_worker(_prompt: str, context: Any | None = None) -> list[dict]:
         return [
             {
                 "stroke_id": "note-only",
