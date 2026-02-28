@@ -20,6 +20,19 @@ def test_fish_prompt_3d_includes_material_fx() -> None:
     assert "applyMaterialFx" in kinds
 
 
+def test_fish_prompt_3_dfishbowl_uses_constituent_3d_scene() -> None:
+    strokes = generate_visual_strokes("3 dfishbowl cinematic with bubbles and caustic refraction")
+    kinds = [row["kind"] for row in strokes]
+    assert "spawnSceneActor" in kinds
+    assert "setActorMotion" in kinds
+    assert "emitFx" in kinds
+    assert "applyMaterialFx" in kinds
+    assert "runScreenScript" not in kinds
+
+    render_mode = next(row for row in strokes if row["kind"] == "setRenderMode")
+    assert render_mode.get("params", {}).get("mode") == "3d"
+
+
 def test_market_growth_prompt_includes_segmented_attach_chart(monkeypatch) -> None:
     monkeypatch.setenv("OPENCOMMOTION_ENABLE_LEGACY_TEMPLATE_SCENES", "1")
     strokes = generate_visual_strokes(

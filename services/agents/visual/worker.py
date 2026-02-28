@@ -276,7 +276,11 @@ def _build_shape_strokes(prompt: str, mode: str) -> list[dict]:
 
 
 def _wants_fish_scene(prompt: str) -> bool:
-    keys = ("fish bowl", "fishbowl", "goldfish", "fish swimming", "bubbles", "caustic", "aquarium")
+    if re.search(r"\bfish\s*[-_ ]?\s*bowl\b", prompt):
+        return True
+    if "fishbowl" in prompt:
+        return True
+    keys = ("goldfish", "fish swimming", "bubbles", "caustic", "aquarium")
     if any(k in prompt for k in keys):
         return True
     return _has_word(prompt, "fish") and (_has_word(prompt, "bowl") or _has_word(prompt, "aquarium"))
@@ -321,8 +325,16 @@ def _context_entity_ids(context: Any) -> list[str]:
     return result
 
 
+def _looks_3d_request(prompt: str) -> bool:
+    if re.search(r"\b3\s*[- ]?d\b", prompt):
+        return True
+    if "three-dimensional" in prompt or "three dimensional" in prompt:
+        return True
+    return any(token in prompt for token in ("refraction", "volumetric"))
+
+
 def _render_mode(prompt: str) -> str:
-    if "3d" in prompt or "three-dimensional" in prompt or "refraction" in prompt or "volumetric" in prompt:
+    if _looks_3d_request(prompt):
         return "3d"
     if "2d" in prompt or "stylized layers" in prompt or "parallax" in prompt:
         return "2d"
