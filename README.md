@@ -27,7 +27,8 @@ Prerequisites: Python 3.11+, Node.js 20+, npm.
 Linux / macOS / Git Bash / WSL shell:
 
 ```bash
-git clone https://github.com/masltov-creations/OpenCommotion ~/apps/opencommotion
+git clone https://github.com/masltov-creations/OpenCommotion ~/apps/opencommotion \
+  || git -C ~/apps/opencommotion pull --ff-only
 cd ~/apps/opencommotion
 bash scripts/setup.sh
 ```
@@ -35,7 +36,7 @@ bash scripts/setup.sh
 Windows PowerShell (runs inside WSL):
 
 ```powershell
-wsl bash -lc 'git clone https://github.com/masltov-creations/OpenCommotion ~/apps/opencommotion && cd ~/apps/opencommotion && bash scripts/setup.sh'
+wsl bash -lc 'git clone https://github.com/masltov-creations/OpenCommotion ~/apps/opencommotion || git -C ~/apps/opencommotion pull --ff-only; cd ~/apps/opencommotion && bash scripts/setup.sh'
 ```
 
 > If your shell prompt already looks like `user@host:~$` you are in WSL — run the Linux commands directly, do not wrap with `wsl`.
@@ -74,6 +75,7 @@ Open the app: http://127.0.0.1:8000
 
 | Symptom | Fix |
 |---|---|
+| `destination path already exists` (empty / broken dir) | `rm -rf ~/apps/opencommotion` then re-run the install command |
 | Port conflict on startup | `opencommotion down && opencommotion run` |
 | Stale UI / inconsistent turns after clone/move | `opencommotion fresh` |
 | `orchestrate failed: request timed out` on long prompts | `echo 'VITE_ORCHESTRATE_TIMEOUT_MS=180000' >> .env && opencommotion run` |
@@ -183,19 +185,16 @@ Visual-intelligence scenario requirements and certification matrix:
 1. Clone and set up (first time) or update (if you already have it):
 
 ```bash
-# First install
-git clone https://github.com/masltov-creations/OpenCommotion ~/apps/opencommotion
+git clone https://github.com/masltov-creations/OpenCommotion ~/apps/opencommotion \
+  || git -C ~/apps/opencommotion pull --ff-only
 cd ~/apps/opencommotion
 bash scripts/setup.sh
-
-# Already installed — update and restart
-opencommotion update
 ```
 
-Windows PowerShell (first install, runs inside WSL):
+Windows PowerShell (runs inside WSL):
 
 ```powershell
-wsl bash -lc 'git clone https://github.com/masltov-creations/OpenCommotion ~/apps/opencommotion && cd ~/apps/opencommotion && bash scripts/setup.sh'
+wsl bash -lc 'git clone https://github.com/masltov-creations/OpenCommotion ~/apps/opencommotion || git -C ~/apps/opencommotion pull --ff-only; cd ~/apps/opencommotion && bash scripts/setup.sh'
 ```
 
 > If you are already in a WSL shell (`user@host:~$`), run the Linux commands directly without the `wsl` wrapper.
