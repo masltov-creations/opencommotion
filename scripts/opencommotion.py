@@ -316,6 +316,9 @@ def cmd_run() -> int:
 
 
 def cmd_dev() -> int:
+    ui_code = _ensure_ui_dist_current()
+    if ui_code != 0:
+        return ui_code
     if os.name == "nt":
         python_bin = shlex.quote(_venv_python().replace("\\", "/"))
         return _run(
