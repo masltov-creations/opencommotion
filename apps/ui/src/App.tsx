@@ -1142,6 +1142,29 @@ export default function App() {
                 <stop offset="0%" stopColor={mood.phase === 'night' ? '#020617' : mood.phase === 'day-to-dusk' ? '#1e293b' : '#111827'} />
                 <stop offset="100%" stopColor={mood.phase === 'night' ? '#1d4ed8' : mood.phase === 'day-to-dusk' ? '#f59e0b' : '#0ea5e9'} />
               </linearGradient>
+              {/* 3D lighting / depth filters */}
+              <filter id="shadow3d" x="-20%" y="-20%" width="150%" height="150%">
+                <feDropShadow dx="4" dy="6" stdDeviation="4" floodColor="#000000" floodOpacity="0.45" />
+              </filter>
+              <filter id="shadow3d-lg" x="-20%" y="-10%" width="150%" height="150%">
+                <feDropShadow dx="6" dy="10" stdDeviation="8" floodColor="#000000" floodOpacity="0.5" />
+              </filter>
+              <radialGradient id="sphere-highlight" cx="35%" cy="30%" r="65%">
+                <stop offset="0%" stopColor="#ffffff" stopOpacity="0.55" />
+                <stop offset="50%" stopColor="#ffffff" stopOpacity="0.12" />
+                <stop offset="100%" stopColor="#000000" stopOpacity="0.25" />
+              </radialGradient>
+              <linearGradient id="cube-face-top" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#ffffff" stopOpacity="0.3" />
+                <stop offset="100%" stopColor="#000000" stopOpacity="0.05" />
+              </linearGradient>
+              <linearGradient id="cube-face-right" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#000000" stopOpacity="0.0" />
+                <stop offset="100%" stopColor="#000000" stopOpacity="0.3" />
+              </linearGradient>
+              <filter id="specular-line" x="-10%" y="-10%" width="130%" height="130%">
+                <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#ffffff" floodOpacity="0.25" />
+              </filter>
             </defs>
             <rect x="0" y="0" width="720" height="360" fill="url(#bg)" rx="14" />
 
@@ -1225,6 +1248,17 @@ export default function App() {
               }
 
               if (actor.type === 'globe') {
+                if (renderMode === '3d') {
+                  return (
+                    <g key={id} filter="url(#shadow3d)">
+                      <circle cx={x} cy={y} r="36" fill="#3b82f6" />
+                      <circle cx={x} cy={y} r="36" fill="url(#sphere-highlight)" />
+                      <ellipse cx={x} cy={y} rx="36" ry="12" fill="none" stroke="#60a5fa44" strokeWidth="1.5" />
+                      <ellipse cx={x} cy={y} rx="12" ry="36" fill="none" stroke="#60a5fa44" strokeWidth="1.5" />
+                      <ellipse cx={x} cy={y + 40} rx="28" ry="5" fill="#00000044" />
+                    </g>
+                  )
+                }
                 return <circle key={id} cx={x} cy={y} r="36" fill="#3b82f6" />
               }
 
@@ -1244,19 +1278,21 @@ export default function App() {
                 const bowlShape = styleString(actorStyle, 'shape', 'round')
                 if (bowlShape === 'square') {
                   return (
-                    <g key={id}>
-                      <rect x={x - 92} y={y - 82} width="184" height="164" rx="18" fill={renderMode === '3d' ? '#dbeafe66' : '#bfdbfe44'} />
-                      <rect x={x - 92} y={y - 82} width="184" height="164" rx="18" fill="none" stroke="#e0f2fe" strokeWidth="5" />
+                    <g key={id} filter={renderMode === '3d' ? 'url(#shadow3d-lg)' : undefined}>
+                      <rect x={x - 92} y={y - 82} width="184" height="164" rx="18" fill={renderMode === '3d' ? '#dbeafe55' : '#bfdbfe44'} />
+                      <rect x={x - 92} y={y - 82} width="184" height="164" rx="18" fill="none" stroke="#e0f2fe" strokeWidth={renderMode === '3d' ? 3 : 5} />
+                      {renderMode === '3d' ? <rect x={x - 92} y={y - 82} width="184" height="164" rx="18" fill="url(#sphere-highlight)" /> : null}
                       <rect x={x - 72} y={y - 66} width="144" height="14" rx="6" fill="#93c5fd55" />
-                      <ellipse cx={x} cy={y + 92} rx="110" ry="18" fill="#0f172a55" />
+                      <ellipse cx={x} cy={y + 92} rx="110" ry={renderMode === '3d' ? 22 : 18} fill={renderMode === '3d' ? '#0f172a77' : '#0f172a55'} />
                     </g>
                   )
                 }
                 return (
-                  <g key={id}>
-                    <ellipse cx={x} cy={y + 46} rx="118" ry="18" fill="#0f172a55" />
-                    <ellipse cx={x} cy={y} rx="94" ry="86" fill={renderMode === '3d' ? '#dbeafe66' : '#bfdbfe44'} />
-                    <ellipse cx={x} cy={y - 1} rx="94" ry="86" fill="none" stroke="#e0f2fe" strokeWidth="5" />
+                  <g key={id} filter={renderMode === '3d' ? 'url(#shadow3d-lg)' : undefined}>
+                    <ellipse cx={x} cy={y + 46} rx="118" ry={renderMode === '3d' ? 22 : 18} fill={renderMode === '3d' ? '#0f172a77' : '#0f172a55'} />
+                    <ellipse cx={x} cy={y} rx="94" ry="86" fill={renderMode === '3d' ? '#dbeafe55' : '#bfdbfe44'} />
+                    <ellipse cx={x} cy={y - 1} rx="94" ry="86" fill="none" stroke="#e0f2fe" strokeWidth={renderMode === '3d' ? 3 : 5} />
+                    {renderMode === '3d' ? <ellipse cx={x} cy={y} rx="94" ry="86" fill="url(#sphere-highlight)" /> : null}
                     <ellipse cx={x} cy={y - 54} rx="66" ry="13" fill="#93c5fd55" />
                   </g>
                 )
@@ -1266,6 +1302,18 @@ export default function App() {
                 const pos = actorPathPosition(actor, playbackMs, 310, 205)
                 const fishFill = styleString(actorStyle, 'fill', '#f59e0b')
                 const fishTail = styleString(actorStyle, 'tail', fishFill)
+                if (renderMode === '3d') {
+                  return (
+                    <g key={id} filter="url(#shadow3d)">
+                      <ellipse cx={pos.x} cy={pos.y} rx="26" ry="15" fill={fishFill} />
+                      <ellipse cx={pos.x} cy={pos.y} rx="26" ry="15" fill="url(#sphere-highlight)" />
+                      <polygon points={`${pos.x - 24},${pos.y} ${pos.x - 44},${pos.y - 13} ${pos.x - 44},${pos.y + 13}`} fill={fishTail} />
+                      <circle cx={pos.x + 12} cy={pos.y - 4} r="3" fill="#111827" />
+                      <circle cx={pos.x + 11} cy={pos.y - 5} r="1.2" fill="#ffffff" />
+                      <ellipse cx={pos.x} cy={pos.y + 18} rx="18" ry="3" fill="#00000033" />
+                    </g>
+                  )
+                }
                 return (
                   <g key={id}>
                     <ellipse cx={pos.x} cy={pos.y} rx="24" ry="13" fill={fishFill} />
@@ -1318,6 +1366,30 @@ export default function App() {
                 const fill = styleString(actorStyle, 'fill', '#22d3ee')
                 const stroke = styleString(actorStyle, 'stroke', '#e2e8f0')
                 const lineWidth = styleNumber(actorStyle, 'line_width', 4)
+                if (renderMode === '3d') {
+                  const d = 18
+                  const lx = pos.x - width / 2
+                  const ly = pos.y - height / 2
+                  return (
+                    <g key={id} filter="url(#shadow3d)">
+                      {/* right face */}
+                      <polygon
+                        points={`${lx + width},${ly} ${lx + width + d},${ly - d} ${lx + width + d},${ly - d + height} ${lx + width},${ly + height}`}
+                        fill={fill}
+                        opacity={0.55}
+                      />
+                      {/* top face */}
+                      <polygon
+                        points={`${lx},${ly} ${lx + d},${ly - d} ${lx + width + d},${ly - d} ${lx + width},${ly}`}
+                        fill={fill}
+                        opacity={0.75}
+                      />
+                      {/* front face */}
+                      <rect x={lx} y={ly} width={width} height={height} fill={fill} stroke={stroke} strokeWidth={lineWidth} rx={4} />
+                      <rect x={lx} y={ly} width={width} height={height} fill="url(#cube-face-right)" rx={4} />
+                    </g>
+                  )
+                }
                 return (
                   <rect
                     key={id}
@@ -1339,6 +1411,15 @@ export default function App() {
                 const stroke = styleString(actorStyle, 'stroke', '#e2e8f0')
                 const lineWidth = styleNumber(actorStyle, 'line_width', 3)
                 const radius = styleNumber(actorStyle, 'radius', actor.type === 'dot' ? 8 : 44)
+                if (renderMode === '3d') {
+                  return (
+                    <g key={id} filter="url(#shadow3d)">
+                      <circle cx={pos.x} cy={pos.y} r={radius} fill={fill} stroke={stroke} strokeWidth={lineWidth} />
+                      <circle cx={pos.x} cy={pos.y} r={radius} fill="url(#sphere-highlight)" />
+                      <ellipse cx={pos.x} cy={pos.y + radius + 6} rx={radius * 0.8} ry={4} fill="#00000044" />
+                    </g>
+                  )
+                }
                 return <circle key={id} cx={pos.x} cy={pos.y} r={radius} fill={fill} stroke={stroke} strokeWidth={lineWidth} />
               }
 
@@ -1350,6 +1431,14 @@ export default function App() {
                 const y2 = styleNumber(actorStyle, 'y2', y)
                 const stroke = styleString(actorStyle, 'stroke', '#22d3ee')
                 const lineWidth = styleNumber(actorStyle, 'line_width', 4)
+                if (renderMode === '3d') {
+                  return (
+                    <g key={id} filter="url(#specular-line)">
+                      <line x1={x + dx} y1={y + dy} x2={x2 + dx} y2={y2 + dy} stroke={stroke} strokeWidth={lineWidth + 2} strokeLinecap="round" />
+                      <line x1={x + dx} y1={y + dy} x2={x2 + dx} y2={y2 + dy} stroke="#ffffff44" strokeWidth={Math.max(1, lineWidth - 1)} strokeLinecap="round" />
+                    </g>
+                  )
+                }
                 return <line key={id} x1={x + dx} y1={y + dy} x2={x2 + dx} y2={y2 + dy} stroke={stroke} strokeWidth={lineWidth} />
               }
 
@@ -1362,6 +1451,21 @@ export default function App() {
                 const p1 = `${pos.x},${pos.y - size / 2}`
                 const p2 = `${pos.x - size / 2},${pos.y + size / 2}`
                 const p3 = `${pos.x + size / 2},${pos.y + size / 2}`
+                if (renderMode === '3d') {
+                  const d = 14
+                  const rp1 = `${pos.x + d},${pos.y - size / 2 - d}`
+                  const rp3 = `${pos.x + size / 2 + d},${pos.y + size / 2 - d}`
+                  return (
+                    <g key={id} filter="url(#shadow3d)">
+                      {/* right depth face */}
+                      <polygon points={`${p1} ${rp1} ${rp3} ${p3}`} fill={fill} opacity={0.45} />
+                      {/* front face */}
+                      <polygon points={`${p1} ${p2} ${p3}`} fill={fill} stroke={stroke} strokeWidth={lineWidth} />
+                      {/* specular edge */}
+                      <line x1={pos.x} y1={pos.y - size / 2} x2={pos.x - size / 4} y2={pos.y} stroke="#ffffff44" strokeWidth={2} />
+                    </g>
+                  )
+                }
                 return <polygon key={id} points={`${p1} ${p2} ${p3}`} fill={fill} stroke={stroke} strokeWidth={lineWidth} />
               }
 
@@ -1376,6 +1480,14 @@ export default function App() {
                   return null
                 }
                 const polylinePoints = points.map((row) => `${row[0] + dx},${row[1] + dy}`).join(' ')
+                if (renderMode === '3d') {
+                  return (
+                    <g key={id} filter="url(#specular-line)">
+                      <polyline points={polylinePoints} fill="none" stroke={stroke} strokeWidth={lineWidth + 2} strokeLinecap="round" strokeLinejoin="round" />
+                      <polyline points={polylinePoints} fill="none" stroke="#ffffff33" strokeWidth={Math.max(1, lineWidth - 1)} strokeLinecap="round" strokeLinejoin="round" />
+                    </g>
+                  )
+                }
                 return <polyline key={id} points={polylinePoints} fill="none" stroke={stroke} strokeWidth={lineWidth} />
               }
 
@@ -1391,6 +1503,14 @@ export default function App() {
                   return null
                 }
                 const polygonPoints = points.map((row) => `${row[0] + dx},${row[1] + dy}`).join(' ')
+                if (renderMode === '3d') {
+                  return (
+                    <g key={id} filter="url(#shadow3d)">
+                      <polygon points={polygonPoints} fill={fill} stroke={stroke} strokeWidth={lineWidth} />
+                      <polygon points={polygonPoints} fill="url(#sphere-highlight)" />
+                    </g>
+                  )
+                }
                 return <polygon key={id} points={polygonPoints} fill={fill} stroke={stroke} strokeWidth={lineWidth} />
               }
 
