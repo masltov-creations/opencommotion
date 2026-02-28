@@ -112,6 +112,42 @@ body {
   align-content: start;
 }
 
+/* ─── Stage-main (layout alias for studio-main) ─────────────────── */
+.stage-main {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+/* ─── Brand bar layout ─────────────────────────────────────────── */
+.brand-title {
+  flex: 0 0 auto;
+}
+
+.brand-center {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  min-width: 0;
+}
+
+.settings-btn {
+  min-width: 110px;
+}
+
+/* ─── Stage top controls ───────────────────────────────────────── */
+.stage-top-row {
+  margin-bottom: 6px;
+}
+
+.stage-meta {
+  font-size: 12px;
+  color: var(--text-subtle);
+  margin-left: auto;
+}
+
 .panel,
 .card {
   border: 1px solid var(--border);
@@ -480,4 +516,102 @@ button:disabled {
   .prompt-composer {
     max-height: none;
   }
+}
+
+/* ─── Utility ──────────────────────────────────────────────────── */
+.no-margin {
+  margin: 0;
+}
+
+/* ─── Screen-reader only ────────────────────────────────────────── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ─── Turn Pipeline Progress Bar ───────────────────────────────── */
+.turn-pipeline-wrap {
+  margin-bottom: 10px;
+}
+
+.pipeline-prompt-preview {
+  margin: 0 0 4px 2px;
+  font-size: 11px;
+  color: var(--text-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  font-family: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  letter-spacing: 0.01em;
+  opacity: 0.85;
+}
+
+.turn-pipeline-svg {
+  width: 100%;
+  height: 72px;
+  display: block;
+  overflow: visible;
+}
+
+/* Animated shimmer on the running fill bar */
+@keyframes pipeline-shimmer {
+  0%   { opacity: 0.6; }
+  50%  { opacity: 1.0; }
+  100% { opacity: 0.6; }
+}
+
+.pipeline-fill-shimmer {
+  animation: pipeline-shimmer 1.4s ease-in-out infinite;
+}
+
+/* Pulsing ring on the active node */
+@keyframes pipeline-node-pulse {
+  0%   { stroke-width: 2;  stroke-opacity: 0.9; }
+  50%  { stroke-width: 5;  stroke-opacity: 0.4; }
+  100% { stroke-width: 2;  stroke-opacity: 0.9; }
+}
+
+.pipeline-node-pulse {
+  animation: pipeline-node-pulse 1.2s ease-in-out infinite;
+  stroke: #22d3ee;
+}
+
+/* Glow + micro-oscillation on the travelling dot */
+@keyframes pipeline-dot-oscillate {
+  0%   { opacity: 0.85; r: 6; }
+  50%  { opacity: 1.0;  r: 7.5; }
+  100% { opacity: 0.85; r: 6; }
+}
+
+.pipeline-dot-travel {
+  animation: pipeline-dot-oscillate 0.8s ease-in-out infinite;
+}
+
+/* State-specific accent colours */
+.turn-pipeline-failed .pipeline-node-pulse {
+  stroke: #ef4444;
+  animation: none;
+}
+
+/* ─── Composer actions row ──────────────────────────────────────── */
+.composer-actions {
+  margin-top: 4px;
+  margin-bottom: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.run-btn {
+  background: linear-gradient(140deg, var(--accent), var(--accent-alt));
+  font-size: 14px;
+  padding: 10px 20px;
+  letter-spacing: 0.03em;
 }

@@ -297,6 +297,186 @@ function normalizeAgentThreadText(raw: string): string {
   return raw.replace(/^OpenCommotion:\s*/i, '').trim()
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Turn Pipeline Progress Bar
+// ──────────────────────────────────────────────────────────────────────────────
+
+const PIPELINE_NODES: Array<{ id: string; label: string; xPct: number; triggerMs: number }> = [
+  { id: 'route', label: 'Route',  xPct: 0.08, triggerMs: 0      },
+  { id: 'llm',   label: 'LLM',   xPct: 0.31, triggerMs: 1800   },
+  { id: 'scene', label: 'Scene', xPct: 0.56, triggerMs: 28000  },
+  { id: 'voice', label: 'Voice', xPct: 0.79, triggerMs: 50000  },
+  { id: 'done',  label: 'Done',  xPct: 0.94, triggerMs: 65000  },
+]
+
+function getTurnProgressPct(elapsedMs: number): number {
+  // Segment the elapsed time through the node thresholds, map to positional pct
+  const nodes = PIPELINE_NODES
+  for (let i = nodes.length - 1; i >= 1; i--) {
+    const prev = nodes[i - 1]
+    const curr = nodes[i]
+    if (elapsedMs >= prev.triggerMs) {
+      const segMs = curr.triggerMs - prev.triggerMs
+      const segPct = curr.xPct - prev.xPct
+      const t = segMs <= 0 ? 1 : Math.min(1, (elapsedMs - prev.triggerMs) / segMs)
+      // ease-out within each segment
+      const eased = 1 - Math.pow(1 - t, 2)
+      return prev.xPct + eased * segPct
+    }
+  }
+  return nodes[0].xPct
+}
+
+type TurnProgressBarProps = {
+  turnState: TurnLifecycleState
+  elapsedMs: number
+  activePrompt: string
+}
+
+function TurnProgressBar({ turnState, elapsedMs, activePrompt }: TurnProgressBarProps) {
+  const W = 600
+  const trackY = 32
+  const trackH = 7
+  const trackR = 4
+  const labelY = 58
+
+  const isRunning   = turnState === 'running'
+  const isCompleted = turnState === 'completed'
+  const isFailed    = turnState === 'failed'
+  const isIdle      = turnState === 'idle'
+
+  // Progress 0-1 along the track
+  const pct = isCompleted ? 1 : Math.min(1, getTurnProgressPct(elapsedMs))
+  const fillW = pct * W
+
+  // Dot position
+  const dotX = isCompleted ? PIPELINE_NODES[PIPELINE_NODES.length - 1].xPct * W
+    : isIdle ? -30
+    : pct * W
+
+  const trackFill = isCompleted ? '#22d3ee' : isFailed ? '#ef4444' : '#22d3ee'
+  const dotColor  = isFailed ? '#ef4444' : '#22d3ee'
+
+  return (
+    <div className={`turn-pipeline-wrap turn-pipeline-${turnState}`} aria-hidden="true">
+      {isRunning && activePrompt ? (
+        <p className="pipeline-prompt-preview">{activePrompt}</p>
+      ) : null}
+      <svg
+        className="turn-pipeline-svg"
+        viewBox={`0 0 ${W} 72`}
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <defs>
+          <linearGradient id="shimmer-grad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%"   stopColor={trackFill} stopOpacity="0.55" />
+            <stop offset="50%"  stopColor={trackFill} stopOpacity="1"    />
+            <stop offset="100%" stopColor={trackFill} stopOpacity="0.55" />
+          </linearGradient>
+          <filter id="node-glow" x="-60%" y="-60%" width="220%" height="220%">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          <filter id="dot-glow" x="-100%" y="-100%" width="300%" height="300%">
+            <feGaussianBlur stdDeviation="5" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          <clipPath id="fill-clip">
+            <rect x="0" y={trackY - 1} width={fillW} height={trackH + 2} rx={trackR} />
+          </clipPath>
+        </defs>
+
+        {/* Track background */}
+        <rect x={0} y={trackY} width={W} height={trackH} rx={trackR} fill="rgba(148,163,184,0.15)" />
+
+        {/* Track fill */}
+        {!isIdle && fillW > 0 ? (
+          <rect
+            x={0} y={trackY} width={fillW} height={trackH} rx={trackR}
+            fill={isRunning ? 'url(#shimmer-grad)' : trackFill}
+            opacity={isRunning ? 1 : 0.85}
+            className={isRunning ? 'pipeline-fill-shimmer' : ''}
+          />
+        ) : null}
+
+        {/* Nodes */}
+        {PIPELINE_NODES.map((node, nodeIdx) => {
+          const nx = node.xPct * W
+          const passed  = !isIdle && pct >= node.xPct - 0.01
+          // "current" = the highest-index node the dot has reached or just passed
+          const activeNodeIdx = isRunning
+            ? PIPELINE_NODES.reduce((best, n, i) => (pct >= n.xPct - 0.01 ? i : best), 0)
+            : -1
+          const isCurrent = isRunning && nodeIdx === activeNodeIdx
+          const nodeR = isCurrent ? 11 : 9
+          const nodeFill = isIdle ? 'rgba(30,58,138,0.6)'
+            : passed && isCompleted ? '#22d3ee'
+            : passed && isFailed ? '#ef4444'
+            : passed ? '#22d3ee'
+            : 'rgba(30,58,138,0.55)'
+          const nodeStroke = passed ? trackFill : 'rgba(148,163,184,0.3)'
+          return (
+            <g key={node.id} filter={isCurrent ? 'url(#node-glow)' : undefined}>
+              <circle
+                cx={nx} cy={trackY + trackH / 2} r={nodeR}
+                fill={nodeFill} stroke={nodeStroke} strokeWidth={passed ? 2 : 1.5}
+                className={isCurrent ? 'pipeline-node-pulse' : ''}
+              />
+              <text
+                x={nx} y={labelY}
+                textAnchor="middle"
+                fill={passed ? (isFailed ? '#fca5a5' : '#a5f3fc') : 'rgba(148,163,184,0.55)'}
+                fontSize="13"
+                fontFamily="'Sora','Space Grotesk','Segoe UI',sans-serif"
+                fontWeight={isCurrent ? '700' : '400'}
+              >
+                {node.label}
+              </text>
+            </g>
+          )
+        })}
+
+        {/* Travelling dot */}
+        {isRunning && dotX >= 0 ? (
+          <circle
+            cx={dotX} cy={trackY + trackH / 2} r={6}
+            fill={dotColor}
+            filter="url(#dot-glow)"
+            className="pipeline-dot-travel"
+          />
+        ) : null}
+
+        {/* Elapsed time */}
+        {isRunning ? (
+          <text
+            x={W / 2} y={72}
+            textAnchor="middle"
+            fill="rgba(148,163,184,0.6)"
+            fontSize="11"
+            fontFamily="'IBM Plex Mono','SFMono-Regular',Menlo,Consolas,monospace"
+          >
+            {(elapsedMs / 1000).toFixed(1)}s
+          </text>
+        ) : null}
+
+        {/* Completed / failed stamp */}
+        {(isCompleted || isFailed) ? (
+          <text
+            x={W / 2} y={72}
+            textAnchor="middle"
+            fill={isCompleted ? '#6ee7b7' : '#fca5a5'}
+            fontSize="11"
+            fontFamily="'IBM Plex Mono','SFMono-Regular',Menlo,Consolas,monospace"
+          >
+            {isCompleted ? `Done · ${(elapsedMs / 1000).toFixed(1)}s` : 'Failed'}
+          </text>
+        ) : null}
+      </svg>
+    </div>
+  )
+}
+
 export default function App() {
   const [prompt, setPrompt] = useState('draw 2 bouncing balls with different colors')
   const [text, setText] = useState('')
@@ -330,7 +510,9 @@ export default function App() {
   const [runActionLoading, setRunActionLoading] = useState(false)
   const [browserSpeaking, setBrowserSpeaking] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
+  const [debugOpen, setDebugOpen] = useState(false)
   const [agentLog, setAgentLog] = useState<AgentLogEntry[]>([])
+  const [settingsTab, setSettingsTab] = useState<'llm' | 'voice' | 'auth' | 'runs' | 'artifacts'>('llm')
   const [sceneRevision, setSceneRevision] = useState(0)
   const [turnState, setTurnState] = useState<TurnLifecycleState>('idle')
   const [turnStatusMessage, setTurnStatusMessage] = useState('Ready')
@@ -1092,29 +1274,35 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="brand-bar card">
-        <div>
+        <div className="brand-title">
           <p className="eyebrow">OpenCommotion Studio</p>
           <h1>OpenCommotion</h1>
-          <p className="lead">Prompt in. Narrated motion scene out. No interpretive dance required.</p>
+        </div>
+        <div className="brand-center">
+          <p className={`turn-status turn-status-${turnState} no-margin`}>
+            <span className="turn-status-dot" aria-hidden="true" />
+            <span>
+              {turnStateLabel}
+              {turnState === 'running' ? ` · ${Math.max(1, Math.ceil(turnElapsedMs / 1000))}s` : ''}
+            </span>
+          </p>
         </div>
         <div className="brand-right">
           <div className="brand-badges">
-            <span className={`badge ${llmReady ? 'ok' : 'warn'}`}>LLM: {llmEffectiveProvider}</span>
-            <span className="badge">STT: {sttEngine}</span>
-            <span className="badge">TTS: {ttsEngine}</span>
-            <span className="badge">UI: v{uiVersion}</span>
-            <span className="badge">rev {uiRevision}</span>
+            <span className={`badge ${llmReady ? 'ok' : 'warn'}`} title="LLM provider">{llmEffectiveProvider}</span>
+            <span className="badge" title="Speech-to-text engine">STT: {sttEngine}</span>
+            <span className="badge" title="Text-to-speech engine">TTS: {ttsEngine}</span>
+            <span className="badge" title="UI version">v{uiVersion}</span>
           </div>
-          <button className="tools-toggle" onClick={() => setToolsOpen((current) => !current)}>
-            {toolsOpen ? 'Close Tools' : 'Tools'}
+          <button className="settings-btn" onClick={() => setToolsOpen((current) => !current)} title="Open settings">
+            ⚙ Settings
           </button>
         </div>
       </header>
 
-      <main className="studio-main">
+      <main className="stage-main">
         <section className="card visual-stage-card" data-testid="visual-stage-card">
-          <div className="row controls">
-            <h2>Visual Surface</h2>
+          <div className="stage-top-row row">
             <button onClick={() => setPlaying((v) => !v)} disabled={!patches.length}>
               {playing ? 'Pause' : 'Play'}
             </button>
@@ -1127,14 +1315,15 @@ export default function App() {
             >
               Replay
             </button>
+            <span className="stage-meta muted">
+              {patches.length
+                ? `${appliedCount}/${patches.length} patches · ${Math.round(playbackMs)}ms / ${durationMs}ms`
+                : 'No scene yet — enter a prompt below'}
+            </span>
+            {qualityReport && !qualityReport.ok ? (
+              <span className="error">Quality: {qualityReport.failures?.join(', ')}</span>
+            ) : null}
           </div>
-
-          {qualityReport ? (
-            <p className={qualityReport.ok ? 'muted' : 'error'}>
-              Graph quality: {qualityReport.ok ? 'compatible' : 'needs correction'}
-              {qualityReport.failures?.length ? ` (${qualityReport.failures.join(', ')})` : ''}
-            </p>
-          ) : null}
 
           <svg className="visual-canvas" viewBox="0 0 720 360" aria-label="visual stage">
             <defs>
@@ -1627,31 +1816,42 @@ export default function App() {
         </section>
 
         <section className="card prompt-composer" data-testid="prompt-composer">
-          <h2>Prompt Composer</h2>
-          <p className="muted">Session: {session}</p>
-          <p className={`turn-status turn-status-${turnState}`} data-testid="turn-status">
-            <span className="turn-status-dot" aria-hidden="true" />
-            <span>
-              Turn status: {turnStateLabel}
-              {turnState === 'running' ? ` (${Math.max(1, Math.ceil(turnElapsedMs / 1000))}s)` : ''}
-            </span>
-          </p>
-          <p className="muted">
-            {turnState === 'running' && activePromptPreview
-              ? `Running prompt: ${activePromptPreview}`
-              : turnStatusMessage}
-          </p>
+          {/* Accessible status text for e2e tests — visually hidden */}
+          <span
+            className="sr-only"
+            data-testid="turn-status"
+            role="status"
+            aria-live="polite"
+          >
+            {turnStateLabel}
+          </span>
+          <TurnProgressBar
+            turnState={turnState}
+            elapsedMs={turnElapsedMs}
+            activePrompt={activePromptPreview}
+          />
           <textarea
             aria-label="prompt input"
             className="composer-input"
-            rows={4}
+            rows={3}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !running) {
+                e.preventDefault()
+                void runTurn()
+              }
+            }}
+            placeholder="Describe a scene… (Ctrl+Enter to run)"
           />
-          <div className="row">
-            <button onClick={runTurn} disabled={running}>{running ? 'Running...' : 'Run Turn'}</button>
-            <button onClick={saveArtifact} disabled={!text}>Save</button>
-            <button onClick={() => setToolsOpen((current) => !current)}>{toolsOpen ? 'Hide Tools' : 'Open Tools'}</button>
+          <div className="row composer-actions">
+            <button className="run-btn" onClick={runTurn} disabled={running} data-testid="run-turn-btn">
+              {running ? '⏳ Running…' : '▶ Run Turn'}
+            </button>
+            <button onClick={saveArtifact} disabled={!text} title="Save this result as an artifact">Save</button>
+            <button onClick={() => setToolsOpen((current) => !current)} title="Open settings and tools">
+              {toolsOpen ? 'Hide Tools' : '⚙ Tools'}
+            </button>
           </div>
           {lastError ? <p className="error">{lastError}</p> : null}
         </section>
