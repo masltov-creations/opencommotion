@@ -11,6 +11,21 @@ from time import perf_counter
 from typing import Any
 from uuid import uuid4
 
+# ---------------------------------------------------------------------------
+# Load .env as defaults so Piper/TTS/LLM config is always available,
+# regardless of how the gateway process was launched.
+# ---------------------------------------------------------------------------
+_ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
+if _ENV_FILE.exists():
+    for _raw in _ENV_FILE.read_text(encoding="utf-8").splitlines():
+        _line = _raw.strip()
+        if not _line or _line.startswith("#") or "=" not in _line:
+            continue
+        _key, _val = _line.split("=", 1)
+        _key = _key.strip()
+        if _key:
+            os.environ.setdefault(_key, _val.strip())
+
 import httpx
 from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
