@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import random
 import re
+import traceback
 from typing import Any
+
+logger = logging.getLogger("opencommotion.visual")
 
 COLOR_MAP = {
     "black": "#111827",
@@ -409,6 +413,76 @@ VISUAL_LLM_PROVIDER_ENV = "OPENCOMMOTION_LLM_PROVIDER"
 VISUAL_LLM_TIMEOUT_ENV = "OPENCOMMOTION_LLM_TIMEOUT_S"
 _VALID_LLM_PROVIDERS_FOR_VISUAL = {"ollama", "openai-compatible", "codex-cli", "openclaw-cli", "openclaw-openai"}
 
+_SUPPORTED_OPS = {"dot", "circle", "ellipse", "rect", "line", "polyline", "polygon", "text", "move", "annotate"}
+
+# Maps unsupported op names to the closest supported primitive.
+_OP_TRANSLATION_MAP: dict[str, str] = {
+    "arc": "polyline",
+    "curve": "polyline",
+    "bezier": "polyline",
+    "path": "polyline",
+    "spline": "polyline",
+    "star": "polygon",
+    "arrow": "polyline",
+    "triangle": "polygon",
+    "hexagon": "polygon",
+    "pentagon": "polygon",
+    "octagon": "polygon",
+    "diamond": "polygon",
+    "gradient": "rect",
+    "image": "rect",
+    "sprite": "rect",
+    "label": "text",
+    "caption": "text",
+    "title": "text",
+    "group": "annotate",
+    "layer": "annotate",
+    "animate": "move",
+    "tween": "move",
+    "transition": "move",
+}
+
+
+def _translate_unsupported_op(cmd: dict) -> tuple[dict, str | None]:
+    """Translate an unsupported op into the nearest supported primitive.
+
+    Returns ``(translated_cmd, warning)`` where *warning* is ``None`` if the
+    op was already supported.
+    """
+    op = cmd.get("op", "")
+    if op in _SUPPORTED_OPS:
+        return cmd, None
+
+    mapped_op = _OP_TRANSLATION_MAP.get(op, "rect")
+    translated = dict(cmd)
+    original_op = translated["op"]
+    translated["op"] = mapped_op
+
+    # Ensure minimum viable fields for the target op.
+    if mapped_op == "rect" and "point" not in translated:
+        translated.setdefault("point", [260, 140])
+        translated.setdefault("width", 120)
+        translated.setdefault("height", 80)
+        translated.setdefault("fill", translated.pop("color", "#9ca3af"))
+    elif mapped_op == "polygon" and "points" not in translated:
+        translated.setdefault("points", [[320, 100], [400, 100], [420, 180], [360, 220], [300, 180]])
+        translated.setdefault("fill", translated.pop("color", "#9ca3af"))
+    elif mapped_op == "polyline" and "points" not in translated:
+        translated.setdefault("points", [[200, 180], [300, 120], [400, 160], [500, 100]])
+        translated.setdefault("color", "#9ca3af")
+        translated.setdefault("line_width", 3)
+    elif mapped_op == "text" and "text" not in translated:
+        translated.setdefault("text", str(original_op))
+        translated.setdefault("point", [260, 180])
+        translated.setdefault("fill", "#f8fafc")
+        translated.setdefault("font_size", 16)
+
+    if "id" not in translated:
+        translated["id"] = f"translated_{original_op}"
+
+    warning = f"Translated unsupported op '{original_op}' -> '{mapped_op}'"
+    return translated, warning
+
 
 def _llm_provider_for_visual() -> str:
     return os.getenv(VISUAL_LLM_PROVIDER_ENV, "heuristic").strip().lower()
@@ -453,8 +527,13 @@ def _visual_dsl_system_prompt() -> str:
     )
 
 
-def _parse_llm_visual_response(raw: str) -> list[dict]:
-    """Extract a list of runScreenScript command dicts from an LLM response."""
+def _parse_llm_visual_response(raw: str) -> tuple[list[dict], list[str]]:
+    """Extract a list of runScreenScript command dicts from an LLM response.
+
+    Returns ``(commands, warnings)``.  Unknown ops are translated into the
+    nearest supported primitive instead of being silently dropped.
+    """
+    warnings: list[str] = []
     clean = raw.strip()
     # Strip markdown code fences
     if clean.startswith("```"):
@@ -464,7 +543,9 @@ def _parse_llm_visual_response(raw: str) -> list[dict]:
     # Find the JSON object
     brace_start = clean.find("{")
     if brace_start == -1:
-        return []
+        warnings.append("LLM visual response contained no JSON object")
+        logger.warning("LLM visual: no JSON object found in response (len=%d)", len(raw))
+        return [], warnings
     clean = clean[brace_start:]
     depth = 0
     end = 0
@@ -477,60 +558,145 @@ def _parse_llm_visual_response(raw: str) -> list[dict]:
                 end = i + 1
                 break
     if end == 0:
-        return []
+        warnings.append("LLM visual response had unbalanced braces")
+        logger.warning("LLM visual: unbalanced braces in response")
+        return [], warnings
     try:
         payload = json.loads(clean[:end])
-    except json.JSONDecodeError:
-        return []
+    except json.JSONDecodeError as exc:
+        warnings.append(f"LLM visual response was not valid JSON: {exc}")
+        logger.warning("LLM visual: JSON decode error: %s", exc)
+        return [], warnings
     if not isinstance(payload, dict):
-        return []
+        warnings.append("LLM visual response was not a JSON object")
+        logger.warning("LLM visual: top-level value was %s, expected dict", type(payload).__name__)
+        return [], warnings
     commands = payload.get("commands")
     if not isinstance(commands, list):
-        return []
-    return [cmd for cmd in commands if isinstance(cmd, dict) and isinstance(cmd.get("op"), str)]
+        warnings.append("LLM visual response had no 'commands' array")
+        logger.warning("LLM visual: missing or invalid 'commands' key")
+        return [], warnings
+
+    result: list[dict] = []
+    for cmd in commands:
+        if not isinstance(cmd, dict) or not isinstance(cmd.get("op"), str):
+            continue
+        translated, warning = _translate_unsupported_op(cmd)
+        if warning:
+            warnings.append(warning)
+            logger.info("LLM visual: %s", warning)
+        result.append(translated)
+    return result, warnings
 
 
 def _build_llm_visual_script(prompt: str, mode: str) -> list[dict]:
-    """Use the configured LLM to generate a freeform visual scene via the DSL."""
+    """Use the configured LLM to generate a freeform visual scene via the DSL.
+
+    Returns ``[]`` on adapter/connection errors so the cascade in
+    ``generate_visual_strokes`` can continue to entity-decomposition and
+    palette fallback.  Op translation happens when the LLM *does* produce
+    output with unsupported ops.  All errors are logged.
+    """
     provider = _llm_provider_for_visual()
     if provider not in _VALID_LLM_PROVIDERS_FOR_VISUAL:
         return []
+
+    all_warnings: list[str] = []
+
     try:
         from services.agents.text.adapters import AdapterError, build_adapters  # noqa: PLC0415
+
         adapters_map = build_adapters(timeout_s=_llm_timeout_for_visual())
         adapter = adapters_map.get(provider)
         if adapter is None:
-            return []
+            logger.warning("LLM visual: adapter '%s' not found in build_adapters result", provider)
+            return []  # let cascade continue
         system_prompt = _visual_dsl_system_prompt()
         user_request = f"Scene to render: {prompt}\nRender mode: {mode}"
         raw = (adapter.generate(user_request, system_prompt_override=system_prompt) or "").strip()
         if not raw:
-            return []
-        commands = _parse_llm_visual_response(raw)
+            logger.warning("LLM visual: provider '%s' returned empty response for prompt: %s", provider, prompt[:80])
+            return []  # let cascade continue
+        commands, warnings = _parse_llm_visual_response(raw)
+        all_warnings.extend(warnings)
         if not commands:
-            return []
-        return [
-            {
-                "stroke_id": "render-mode-llm-visual",
-                "kind": "setRenderMode",
-                "params": {"mode": mode},
-                "timing": {"start_ms": 0, "duration_ms": 80, "easing": "linear"},
-            },
-            {
-                "stroke_id": "llm-visual-script",
-                "kind": "runScreenScript",
-                "params": {"program": {"commands": commands}},
-                "timing": {"start_ms": 40, "duration_ms": 4800, "easing": "linear"},
-            },
-            {
-                "stroke_id": "llm-visual-note",
-                "kind": "annotateInsight",
-                "params": {"text": f"LLM visual ({provider}): {prompt[:72].strip()}"},
-                "timing": {"start_ms": 120, "duration_ms": 160, "easing": "linear"},
-            },
-        ]
+            logger.warning("LLM visual: no usable commands parsed from response (warnings: %s)", warnings)
+            return []  # let cascade continue
+    except AdapterError as exc:
+        logger.warning("LLM visual: adapter error from '%s': %s", provider, exc)
+        return []  # let cascade continue
     except Exception:  # noqa: BLE001
-        return []
+        logger.error("LLM visual: unexpected error during generation:\n%s", traceback.format_exc())
+        return []  # let cascade continue
+
+    strokes = [
+        {
+            "stroke_id": "render-mode-llm-visual",
+            "kind": "setRenderMode",
+            "params": {"mode": mode},
+            "timing": {"start_ms": 0, "duration_ms": 80, "easing": "linear"},
+        },
+        {
+            "stroke_id": "llm-visual-script",
+            "kind": "runScreenScript",
+            "params": {"program": {"commands": commands}},
+            "timing": {"start_ms": 40, "duration_ms": 4800, "easing": "linear"},
+        },
+        {
+            "stroke_id": "llm-visual-note",
+            "kind": "annotateInsight",
+            "params": {"text": f"LLM visual ({provider}): {prompt[:72].strip()}"},
+            "timing": {"start_ms": 120, "duration_ms": 160, "easing": "linear"},
+        },
+    ]
+    if all_warnings:
+        strokes.append(
+            {
+                "stroke_id": "llm-visual-warnings",
+                "kind": "annotateInsight",
+                "params": {"text": f"Visual translations: {'; '.join(all_warnings[:5])}"},
+                "timing": {"start_ms": 160, "duration_ms": 120, "easing": "linear"},
+            }
+        )
+    return strokes
+
+
+def _fallback_visual_strokes(prompt: str, mode: str, warnings: list[str]) -> list[dict]:
+    """Produce a minimal but visible fallback scene when LLM visual generation fails.
+
+    Instead of returning an empty list, this creates a basic annotation and
+    a placeholder shape so the user always sees *something*.
+    """
+    subject = prompt[:60].strip() or "scene"
+    warning_text = "; ".join(warnings[:3]) if warnings else "LLM visual unavailable"
+    return [
+        {
+            "stroke_id": "render-mode-llm-fallback",
+            "kind": "setRenderMode",
+            "params": {"mode": mode},
+            "timing": {"start_ms": 0, "duration_ms": 80, "easing": "linear"},
+        },
+        {
+            "stroke_id": "llm-fallback-script",
+            "kind": "runScreenScript",
+            "params": {
+                "program": {
+                    "commands": [
+                        {"op": "rect", "id": "fallback_bg", "point": [160, 80], "width": 400, "height": 200, "fill": "#1e293b", "stroke": "#475569", "line_width": 2},
+                        {"op": "text", "id": "fallback_label", "point": [200, 160], "text": subject, "fill": "#e2e8f0", "font_size": 18},
+                        {"op": "text", "id": "fallback_note", "point": [200, 200], "text": "(visual recovery)", "fill": "#94a3af", "font_size": 12},
+                    ]
+                }
+            },
+            "timing": {"start_ms": 40, "duration_ms": 3600, "easing": "linear"},
+        },
+        {
+            "stroke_id": "llm-fallback-warning",
+            "kind": "annotateInsight",
+            "params": {"text": f"Visual recovery: {warning_text}"},
+            "timing": {"start_ms": 80, "duration_ms": 160, "easing": "linear"},
+        },
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -997,8 +1163,12 @@ def generate_visual_strokes(prompt: str, context: Any | None = None) -> list[dic
             strokes.extend(entity_strokes)
 
     if not strokes and p.strip():
-        # Final fallback: seeded polyline palette script.
+        # Final heuristic fallback: seeded polyline palette script.
         strokes.extend(_build_palette_script_strokes(prompt=p, mode=mode))
+
+    if not strokes and p.strip():
+        # Absolute last resort: visible recovery scene so the user never sees an empty canvas.
+        strokes.extend(_fallback_visual_strokes(p, mode, ["All visual generation paths exhausted"]))
 
     if follow_up and existing_entity_ids:
         strokes.append(

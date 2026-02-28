@@ -135,7 +135,8 @@ def test_entity_annotation_contains_primitives_route_label() -> None:
 
 def test_llm_visual_path_skipped_when_provider_is_heuristic(monkeypatch) -> None:
     # heuristic provider (the default) must never invoke build_adapters
-    monkeypatch.delenv("OPENCOMMOTION_VISUAL_LLM_PROVIDER", raising=False)
+    # Note: the visual worker reads OPENCOMMOTION_LLM_PROVIDER (not VISUAL_LLM_PROVIDER)
+    monkeypatch.delenv("OPENCOMMOTION_LLM_PROVIDER", raising=False)
     import services.agents.text.adapters as _adapters_mod
     calls: list[str] = []
     original_build = _adapters_mod.build_adapters

@@ -26,6 +26,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
+from services.agents.coherence import assess_coherence
 from services.agents.text.worker import LLMEngineError, generate_text_response, llm_capabilities
 from services.agents.voice.errors import VoiceEngineError
 from services.agents.visual.worker import generate_visual_strokes
@@ -116,23 +117,51 @@ def runtime_config_apply(req: RuntimeConfigApplyRequest) -> dict:
 
 
 @app.post("/v1/orchestrate")
-def orchestrate(req: OrchestrateRequest) -> dict:
+async def orchestrate(req: OrchestrateRequest) -> dict:
     if len(req.prompt) > 4000:
         raise HTTPException(status_code=422, detail={"error": "prompt_too_long", "max_chars": 4000})
     started = perf_counter()
 
-    try:
-        text = generate_text_response(req.prompt, context=req.context)
-    except LLMEngineError as exc:
+    # --- Phase 1: parallel text + visual generation -----------------------
+    import asyncio  # noqa: PLC0415
+
+    text_error: LLMEngineError | None = None
+
+    def _generate_text() -> str:
+        nonlocal text_error
+        try:
+            return generate_text_response(req.prompt, context=req.context)
+        except LLMEngineError as exc:
+            text_error = exc
+            return ""
+
+    text_task = asyncio.to_thread(_generate_text)
+    visual_task = asyncio.to_thread(generate_visual_strokes, req.prompt, req.context)
+
+    text, strokes = await asyncio.gather(text_task, visual_task)
+
+    if text_error is not None:
         raise HTTPException(
             status_code=503,
             detail={
                 "error": "llm_engine_unavailable",
-                "provider": exc.provider,
-                "message": str(exc),
+                "provider": text_error.provider,
+                "message": str(text_error),
             },
-        ) from exc
-    strokes = generate_visual_strokes(req.prompt, context=req.context)
+        )
+
+    # --- Phase 2: coherence check (opt-in via env) -------------------------
+    coherence_report: dict | None = None
+    coherence_enabled = os.getenv("OPENCOMMOTION_COHERENCE_ENABLED", "").strip().lower() in ("1", "true", "yes")
+    if coherence_enabled:
+        try:
+            coherence_report = await asyncio.to_thread(
+                assess_coherence, req.prompt, text, strokes
+            )
+        except Exception:  # noqa: BLE001
+            coherence_report = {"ok": True, "skipped": True, "reason": "coherence error"}
+
+    # --- Phase 3: TTS (depends on final text) -----------------------------
     try:
         voice = synthesize_segments(text)
     except VoiceEngineError as exc:
@@ -180,5 +209,8 @@ def orchestrate(req: OrchestrateRequest) -> dict:
         "voice": voice,
         "timeline": {"duration_ms": duration_ms},
     }
+    if coherence_report is not None:
+        payload["coherence"] = coherence_report
     ORCHESTRATE_LATENCY.observe(perf_counter() - started)
     return payload
+

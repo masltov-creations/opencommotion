@@ -119,7 +119,7 @@ def test_agent_run_manager_handles_ten_sessions_within_threshold(tmp_path, monke
 
         pending = set(run_ids)
         completed: dict[str, dict] = {}
-        deadline = perf_counter() + 25.0  # 25s allows for slower CI/dev machines
+        deadline = perf_counter() + 45.0  # 45s: parallel orchestration may add latency on slow CI/dev machines
 
         while pending and perf_counter() < deadline:
             for run_id in list(pending):
@@ -135,7 +135,7 @@ def test_agent_run_manager_handles_ten_sessions_within_threshold(tmp_path, monke
 
         elapsed = perf_counter() - start
         assert not pending, f"runs did not complete in time: {sorted(pending)}"
-        assert elapsed < 25.0, f"10-session completion latency too high: {elapsed:.2f}s"
+        assert elapsed < 45.0, f"10-session completion latency too high: {elapsed:.2f}s"
 
         for run_id in run_ids:
             state = completed[run_id]

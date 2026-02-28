@@ -161,18 +161,18 @@ function isTurnResultV2(payload: unknown): payload is TurnResultV2 {
 
 function normalizeTurnPayload(payload: unknown): TurnResult | null {
   if (isTurnResultV2(payload)) {
-      return {
-        session_id: payload.session_id,
-        scene_id: payload.scene_id,
-        revision: payload.revision,
-        turn_id: payload.turn_id,
-        text: payload.text || '',
-        voice: payload.voice || { voice: 'unknown', segments: [] },
-        visual_patches: payload.legacy_visual_patches || [],
-        timeline: payload.timeline,
-        quality_report: payload.quality_report,
-        warnings: Array.isArray(payload.warnings) ? payload.warnings.map((row) => String(row)) : [],
-      }
+    return {
+      session_id: payload.session_id,
+      scene_id: payload.scene_id,
+      revision: payload.revision,
+      turn_id: payload.turn_id,
+      text: payload.text || '',
+      voice: payload.voice || { voice: 'unknown', segments: [] },
+      visual_patches: payload.legacy_visual_patches || [],
+      timeline: payload.timeline,
+      quality_report: payload.quality_report,
+      warnings: Array.isArray(payload.warnings) ? payload.warnings.map((row) => String(row)) : [],
+    }
   }
   if (payload && typeof payload === 'object') {
     const row = payload as Record<string, unknown>
@@ -244,8 +244,8 @@ function actorPathPosition(actor: SceneActor, playbackMs: number, fallbackX: num
   const pointsRaw = actor.motion.path_points
   const points = Array.isArray(pointsRaw)
     ? pointsRaw
-        .filter((row): row is number[] => Array.isArray(row) && row.length >= 2)
-        .map((row) => [Number(row[0]), Number(row[1])])
+      .filter((row): row is number[] => Array.isArray(row) && row.length >= 2)
+      .map((row) => [Number(row[0]), Number(row[1])])
     : []
   const t = durationMs <= 0 ? 0 : (playbackMs % durationMs) / durationMs
   const mapped = interpolatePath(points, t)
@@ -302,11 +302,11 @@ function normalizeAgentThreadText(raw: string): string {
 // ──────────────────────────────────────────────────────────────────────────────
 
 const PIPELINE_NODES: Array<{ id: string; label: string; xPct: number; triggerMs: number }> = [
-  { id: 'route', label: 'Route',  xPct: 0.08, triggerMs: 0      },
-  { id: 'llm',   label: 'LLM',   xPct: 0.31, triggerMs: 1800   },
-  { id: 'scene', label: 'Scene', xPct: 0.56, triggerMs: 28000  },
-  { id: 'voice', label: 'Voice', xPct: 0.79, triggerMs: 50000  },
-  { id: 'done',  label: 'Done',  xPct: 0.94, triggerMs: 65000  },
+  { id: 'route', label: 'Route', xPct: 0.08, triggerMs: 0 },
+  { id: 'llm', label: 'LLM', xPct: 0.31, triggerMs: 1800 },
+  { id: 'scene', label: 'Scene', xPct: 0.56, triggerMs: 28000 },
+  { id: 'voice', label: 'Voice', xPct: 0.79, triggerMs: 50000 },
+  { id: 'done', label: 'Done', xPct: 0.94, triggerMs: 65000 },
 ]
 
 function getTurnProgressPct(elapsedMs: number): number {
@@ -340,10 +340,10 @@ function TurnProgressBar({ turnState, elapsedMs, activePrompt }: TurnProgressBar
   const trackR = 4
   const labelY = 58
 
-  const isRunning   = turnState === 'running'
+  const isRunning = turnState === 'running'
   const isCompleted = turnState === 'completed'
-  const isFailed    = turnState === 'failed'
-  const isIdle      = turnState === 'idle'
+  const isFailed = turnState === 'failed'
+  const isIdle = turnState === 'idle'
 
   // Progress 0-1 along the track
   const pct = isCompleted ? 1 : Math.min(1, getTurnProgressPct(elapsedMs))
@@ -352,10 +352,10 @@ function TurnProgressBar({ turnState, elapsedMs, activePrompt }: TurnProgressBar
   // Dot position
   const dotX = isCompleted ? PIPELINE_NODES[PIPELINE_NODES.length - 1].xPct * W
     : isIdle ? -30
-    : pct * W
+      : pct * W
 
   const trackFill = isCompleted ? '#22d3ee' : isFailed ? '#ef4444' : '#22d3ee'
-  const dotColor  = isFailed ? '#ef4444' : '#22d3ee'
+  const dotColor = isFailed ? '#ef4444' : '#22d3ee'
 
   return (
     <div className={`turn-pipeline-wrap turn-pipeline-${turnState}`} aria-hidden="true">
@@ -370,8 +370,8 @@ function TurnProgressBar({ turnState, elapsedMs, activePrompt }: TurnProgressBar
       >
         <defs>
           <linearGradient id="shimmer-grad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%"   stopColor={trackFill} stopOpacity="0.55" />
-            <stop offset="50%"  stopColor={trackFill} stopOpacity="1"    />
+            <stop offset="0%" stopColor={trackFill} stopOpacity="0.55" />
+            <stop offset="50%" stopColor={trackFill} stopOpacity="1" />
             <stop offset="100%" stopColor={trackFill} stopOpacity="0.55" />
           </linearGradient>
           <filter id="node-glow" x="-60%" y="-60%" width="220%" height="220%">
@@ -403,7 +403,7 @@ function TurnProgressBar({ turnState, elapsedMs, activePrompt }: TurnProgressBar
         {/* Nodes */}
         {PIPELINE_NODES.map((node, nodeIdx) => {
           const nx = node.xPct * W
-          const passed  = !isIdle && pct >= node.xPct - 0.01
+          const passed = !isIdle && pct >= node.xPct - 0.01
           // "current" = the highest-index node the dot has reached or just passed
           const activeNodeIdx = isRunning
             ? PIPELINE_NODES.reduce((best, n, i) => (pct >= n.xPct - 0.01 ? i : best), 0)
@@ -412,9 +412,9 @@ function TurnProgressBar({ turnState, elapsedMs, activePrompt }: TurnProgressBar
           const nodeR = isCurrent ? 11 : 9
           const nodeFill = isIdle ? 'rgba(30,58,138,0.6)'
             : passed && isCompleted ? '#22d3ee'
-            : passed && isFailed ? '#ef4444'
-            : passed ? '#22d3ee'
-            : 'rgba(30,58,138,0.55)'
+              : passed && isFailed ? '#ef4444'
+                : passed ? '#22d3ee'
+                  : 'rgba(30,58,138,0.55)'
           const nodeStroke = passed ? trackFill : 'rgba(148,163,184,0.3)'
           return (
             <g key={node.id} filter={isCurrent ? 'url(#node-glow)' : undefined}>
@@ -1938,6 +1938,15 @@ export default function App() {
                     onChange={(e) => updateSetupDraft('OPENCOMMOTION_LLM_MODEL', e.target.value)}
                     placeholder="provider model"
                   />
+                  <label className="muted">Coherence check</label>
+                  <select
+                    value={setupDraft.OPENCOMMOTION_COHERENCE_ENABLED || 'false'}
+                    onChange={(e) => updateSetupDraft('OPENCOMMOTION_COHERENCE_ENABLED', e.target.value)}
+                  >
+                    <option value="false">disabled</option>
+                    <option value="true">enabled</option>
+                  </select>
+                  <p className="muted">When enabled, an agent verifies text + visuals are coherent after generation.</p>
                 </div>
               ) : null}
               {setupStep === 2 ? (
