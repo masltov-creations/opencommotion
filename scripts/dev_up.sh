@@ -31,10 +31,22 @@ if [[ "$UI_MODE" != "dev" && "$UI_MODE" != "dist" && "$UI_MODE" != "none" ]]; th
   exit 1
 fi
 
+PYTHON_BIN="${OPENCOMMOTION_PYTHON_BIN:-}"
+if [ -z "$PYTHON_BIN" ]; then
+  if command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
+  elif command -v python >/dev/null 2>&1; then
+    PYTHON_BIN="python"
+  else
+    echo "python3 or python is required" >&2
+    exit 1
+  fi
+fi
+
 check_port_free() {
   local port="$1"
   local label="$2"
-  if ! python3 - "$port" <<'PY'
+  if ! "$PYTHON_BIN" - "$port" <<'PY'
 import socket
 import sys
 
@@ -106,12 +118,17 @@ if [ "$UI_MODE" = "dist" ]; then
   fi
 fi
 
-if [ ! -x .venv/bin/python ]; then
-  python3 -m venv .venv
-fi
+USE_CURRENT_PYTHON="${OPENCOMMOTION_USE_CURRENT_PYTHON:-false}"
+if [[ "$USE_CURRENT_PYTHON" == "1" || "$USE_CURRENT_PYTHON" == "true" || "$USE_CURRENT_PYTHON" == "yes" || "$USE_CURRENT_PYTHON" == "on" ]]; then
+  echo "Using current Python environment (OPENCOMMOTION_USE_CURRENT_PYTHON enabled)."
+else
+  if [ ! -x .venv/bin/python ]; then
+    "$PYTHON_BIN" -m venv .venv
+  fi
 
-source .venv/bin/activate
-pip install -r requirements.txt >/dev/null
+  source .venv/bin/activate
+  pip install -r requirements.txt >/dev/null
+fi
 
 if command -v docker >/dev/null 2>&1; then
   docker compose up -d redis postgres >/dev/null 2>&1 || true
@@ -119,10 +136,10 @@ fi
 
 export PYTHONPATH="$ROOT"
 
-nohup python -m uvicorn services.gateway.app.main:app --host 127.0.0.1 --port "$GATEWAY_PORT" > runtime/logs/gateway.log 2>&1 &
+nohup "$PYTHON_BIN" -m uvicorn services.gateway.app.main:app --host 127.0.0.1 --port "$GATEWAY_PORT" > runtime/logs/gateway.log 2>&1 &
 echo $! > runtime/agent-runs/gateway.pid
 
-nohup python -m uvicorn services.orchestrator.app.main:app --host 127.0.0.1 --port "$ORCHESTRATOR_PORT" > runtime/logs/orchestrator.log 2>&1 &
+nohup "$PYTHON_BIN" -m uvicorn services.orchestrator.app.main:app --host 127.0.0.1 --port "$ORCHESTRATOR_PORT" > runtime/logs/orchestrator.log 2>&1 &
 echo $! > runtime/agent-runs/orchestrator.pid
 
 if [ "$UI_MODE" = "dev" ] && [ -f apps/ui/package.json ]; then

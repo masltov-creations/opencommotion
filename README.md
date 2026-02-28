@@ -359,6 +359,33 @@ Voice engines:
 - TTS: `auto|piper|espeak|openai-compatible|tone-fallback`
 - On Windows/WSL with `auto`, backend also attempts Windows SAPI before tone fallback.
 
+### Better Natural Open-Source Speech (Recommended)
+
+For better local speech quality, use Piper (open source). Translation: less robot, more radio host.
+
+1. On Windows, run one command to install/configure the high-quality voice path:
+
+```bash
+opencommotion -voice-setup
+```
+
+2. (Manual/cross-platform) install a `piper` binary and place a model under `data/models/piper/` (recommended: `data/models/piper/en_US-lessac-high.onnx`).
+3. Set these `.env` values:
+
+```dotenv
+OPENCOMMOTION_TTS_ENGINE=piper
+OPENCOMMOTION_PIPER_BIN=piper
+OPENCOMMOTION_PIPER_MODEL=data/models/piper/en_US-lessac-high.onnx
+```
+
+4. Run:
+
+```bash
+python scripts/voice_preflight.py
+```
+
+Tip: `python scripts/configure_voice_defaults.py` auto-prefers Piper when both the binary and model are detected, so your defaults can quietly do the right thing while you pretend this was effortless.
+
 ## Diagnostics
 
 ```bash

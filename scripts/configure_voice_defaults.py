@@ -76,13 +76,33 @@ def main() -> int:
     if _normalize_path_overrides(values):
         changed = True
 
+    piper_bin = values.get("OPENCOMMOTION_PIPER_BIN", "").strip() or os.getenv("OPENCOMMOTION_PIPER_BIN_HINT", "").strip()
+    if piper_bin:
+        piper_bin = shutil.which(piper_bin) or piper_bin
+    else:
+        piper_bin = shutil.which("piper") or ""
+
+    piper_model = values.get("OPENCOMMOTION_PIPER_MODEL", "").strip() or os.getenv("OPENCOMMOTION_PIPER_MODEL_HINT", "").strip()
+    piper_ready = bool(piper_bin and piper_model and Path(piper_model).is_file())
+
     espeak_bin = os.getenv("OPENCOMMOTION_ESPEAK_BIN_HINT", "").strip()
     if not espeak_bin:
         espeak_bin = shutil.which("espeak-ng") or shutil.which("espeak") or ""
 
     current_tts = values.get("OPENCOMMOTION_TTS_ENGINE", "").strip().lower()
-    if espeak_bin and current_tts in {"", "tone-fallback"}:
+    if piper_ready and current_tts in {"", "tone-fallback", "espeak", "auto"}:
+        values["OPENCOMMOTION_TTS_ENGINE"] = "piper"
+        changed = True
+    elif espeak_bin and current_tts in {"", "tone-fallback"}:
         values["OPENCOMMOTION_TTS_ENGINE"] = "espeak"
+        changed = True
+
+    if piper_bin and not values.get("OPENCOMMOTION_PIPER_BIN", "").strip():
+        values["OPENCOMMOTION_PIPER_BIN"] = piper_bin
+        changed = True
+
+    if piper_model and Path(piper_model).is_file() and not values.get("OPENCOMMOTION_PIPER_MODEL", "").strip():
+        values["OPENCOMMOTION_PIPER_MODEL"] = piper_model
         changed = True
 
     if espeak_bin and not values.get("OPENCOMMOTION_ESPEAK_BIN", "").strip():

@@ -5,9 +5,11 @@ import argparse
 import hashlib
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlopen
@@ -17,6 +19,12 @@ UI_SRC_ROOT = ROOT / "apps" / "ui" / "src"
 UI_TRACKED_DIST_ROOT = ROOT / "apps" / "ui" / "dist"
 UI_RUNTIME_DIST_ROOT = ROOT / "runtime" / "ui-dist"
 UI_BUILD_MARKER = UI_RUNTIME_DIST_ROOT / ".opencommotion-build-hash"
+PIPER_WINDOWS_URL = "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip"
+PIPER_MODEL_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx?download=true"
+PIPER_CONFIG_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx.json?download=true"
+PIPER_BIN_REL = Path("runtime/tools/piper/piper/piper.exe")
+PIPER_MODEL_REL = Path("data/models/piper/en_US-lessac-high.onnx")
+PIPER_CONFIG_REL = Path("data/models/piper/en_US-lessac-high.onnx.json")
 COMMANDS = [
     "install",
     "setup",
@@ -32,6 +40,7 @@ COMMANDS = [
     "test-e2e",
     "test-complete",
     "fresh-agent-e2e",
+    "voice-setup",
     "doctor",
     "quickstart",
     "version",
@@ -53,6 +62,7 @@ COMMAND_FLAG_ALIASES = {
     "-test-e2e": "test-e2e",
     "-test-complete": "test-complete",
     "-fresh-agent-e2e": "fresh-agent-e2e",
+    "-voice-setup": "voice-setup",
     "-doctor": "doctor",
     "-quickstart": "quickstart",
     "-version": "version",
@@ -61,6 +71,16 @@ COMMAND_FLAG_ALIASES = {
 
 
 def _venv_python() -> str:
+    if os.name == "nt":
+        windows_candidates = [
+            ROOT / ".venv-1" / "Scripts" / "python.exe",
+            ROOT / ".venv" / "Scripts" / "python.exe",
+        ]
+        for candidate in windows_candidates:
+            if candidate.exists():
+                return str(candidate)
+        return sys.executable
+
     candidate = ROOT / ".venv" / "bin" / "python"
     if candidate.exists():
         return str(candidate)
@@ -102,6 +122,21 @@ def _project_identity() -> str:
 
 def _env_with_pythonpath() -> dict[str, str]:
     env = os.environ.copy()
+    env_file = ROOT / ".env"
+    if env_file.exists():
+        for raw_line in env_file.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("export "):
+                line = line[len("export ") :].strip()
+            if "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key:
+                env.setdefault(key, value)
     root = str(ROOT)
     current = env.get("PYTHONPATH", "").strip()
     if current:
@@ -123,6 +158,91 @@ def _run(command: list[str]) -> int:
         env=_env_with_pythonpath(),
     )
     return int(completed.returncode)
+
+
+def _download_file(url: str, target_path: Path) -> None:
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    with urlopen(url, timeout=120) as response:
+        target_path.write_bytes(response.read())
+
+
+def _ensure_env_file_exists() -> Path:
+    env_path = ROOT / ".env"
+    if env_path.exists():
+        return env_path
+    example_path = ROOT / ".env.example"
+    if example_path.exists():
+        env_path.write_text(example_path.read_text(encoding="utf-8"), encoding="utf-8")
+    else:
+        env_path.write_text("", encoding="utf-8")
+    return env_path
+
+
+def _set_env_values(values: dict[str, str]) -> None:
+    env_path = _ensure_env_file_exists()
+    original_text = env_path.read_text(encoding="utf-8")
+    source_lines = original_text.splitlines()
+    seen_keys: set[str] = set()
+    output_lines: list[str] = []
+
+    for line in source_lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in line:
+            output_lines.append(line)
+            continue
+        key, _ = line.split("=", 1)
+        normalized_key = key.strip()
+        if normalized_key in values:
+            output_lines.append(f"{normalized_key}={values[normalized_key]}")
+            seen_keys.add(normalized_key)
+        else:
+            output_lines.append(line)
+
+    missing_keys = [key for key in values if key not in seen_keys]
+    if missing_keys and output_lines and output_lines[-1].strip():
+        output_lines.append("")
+    for key in missing_keys:
+        output_lines.append(f"{key}={values[key]}")
+
+    env_path.write_text("\n".join(output_lines) + "\n", encoding="utf-8")
+
+
+def _verify_piper_engine() -> int:
+    return _run(
+        [
+            _venv_python(),
+            "-c",
+            (
+                "from services.agents.voice.tts.worker import synthesize_segments; "
+                "result=synthesize_segments('OpenCommotion Piper verification'); "
+                "print('engine=' + str(result.get('engine'))); "
+                "raise SystemExit(0 if result.get('engine') == 'piper' else 1)"
+            ),
+        ]
+    )
+
+
+def _npm_executable() -> str | None:
+    candidates = ["npm.cmd", "npm.exe", "npm"] if os.name == "nt" else ["npm"]
+    for candidate in candidates:
+        resolved = shutil.which(candidate)
+        if resolved:
+            return resolved
+    return None
+
+
+def _bash_executable() -> str:
+    if os.name != "nt":
+        return "bash"
+    preferred = [
+        Path("C:/Program Files/Git/bin/bash.exe"),
+        Path("C:/Program Files/Git/usr/bin/bash.exe"),
+    ]
+    for candidate in preferred:
+        if candidate.exists():
+            return str(candidate)
+    resolved = shutil.which("bash")
+    return resolved or "bash"
 
 
 def _vite_entry_candidates() -> list[Path]:
@@ -153,18 +273,19 @@ def _repair_vite_exec_bits() -> None:
 
 
 def _install_ui_dependencies() -> int:
-    if shutil.which("npm") is None:
+    npm_exec = _npm_executable()
+    if npm_exec is None:
         return 127
     print("Installing UI dependencies...")
-    code = _run(["npm", "install", "--silent"])
+    code = _run([npm_exec, "install", "--silent"])
     if code != 0:
         return code
     # Workspaces should be covered by root install; keep this as a repair pass for older checkouts.
-    return _run(["npm", "install", "--workspace", "@opencommotion/ui", "--silent"])
+    return _run([npm_exec, "install", "--workspace", "@opencommotion/ui", "--silent"])
 
 
 def cmd_install() -> int:
-    return _run(["bash", "scripts/install_local.sh"])
+    return _run([_bash_executable(), "scripts/install_local.sh"])
 
 
 def cmd_setup() -> int:
@@ -175,11 +296,39 @@ def cmd_run() -> int:
     ui_code = _ensure_ui_dist_current()
     if ui_code != 0:
         return ui_code
-    return _run(["bash", "scripts/dev_up.sh", "--ui-mode", "dist"])
+    if os.name == "nt":
+        python_bin = shlex.quote(_venv_python().replace("\\", "/"))
+        return _run(
+            [
+                _bash_executable(),
+                "-lc",
+                (
+                    "set -euo pipefail; "
+                    "export OPENCOMMOTION_USE_CURRENT_PYTHON=1; "
+                    f"export OPENCOMMOTION_PYTHON_BIN={python_bin}; "
+                    "bash scripts/dev_up.sh --ui-mode dist"
+                ),
+            ]
+        )
+    return _run([_bash_executable(), "scripts/dev_up.sh", "--ui-mode", "dist"])
 
 
 def cmd_dev() -> int:
-    return _run(["bash", "scripts/dev_up.sh", "--ui-mode", "dev"])
+    if os.name == "nt":
+        python_bin = shlex.quote(_venv_python().replace("\\", "/"))
+        return _run(
+            [
+                _bash_executable(),
+                "-lc",
+                (
+                    "set -euo pipefail; "
+                    "export OPENCOMMOTION_USE_CURRENT_PYTHON=1; "
+                    f"export OPENCOMMOTION_PYTHON_BIN={python_bin}; "
+                    "bash scripts/dev_up.sh --ui-mode dev"
+                ),
+            ]
+        )
+    return _run([_bash_executable(), "scripts/dev_up.sh", "--ui-mode", "dev"])
 
 
 def _ui_hash_inputs() -> list[Path]:
@@ -237,7 +386,8 @@ def _ensure_ui_dist_current() -> int:
         return 0
     if not (ROOT / "apps" / "ui" / "package.json").exists():
         return 0
-    if shutil.which("npm") is None:
+    npm_exec = _npm_executable()
+    if npm_exec is None:
         _seed_runtime_dist_from_tracked()
         return 0
 
@@ -258,7 +408,7 @@ def _ensure_ui_dist_current() -> int:
 
     print("Building UI assets...")
     _repair_vite_exec_bits()
-    code = _run(["npm", "run", "ui:build"])
+    code = _run([npm_exec, "run", "ui:build"])
     if code != 0:
         # code 127 usually means missing vite in older/misaligned installs.
         if code == 127:
@@ -270,7 +420,7 @@ def _ensure_ui_dist_current() -> int:
                     return 0
                 return deps_code
             _repair_vite_exec_bits()
-            code = _run(["npm", "run", "ui:build"])
+            code = _run([npm_exec, "run", "ui:build"])
         if code != 0:
             print("npm ui:build failed. Retrying via node + vite.js (permission-safe path)...")
             code = _run_ui_build_via_node()
@@ -441,7 +591,7 @@ def cmd_fresh() -> int:
 
 
 def cmd_down() -> int:
-    return _run(["bash", "scripts/dev_down.sh"])
+    return _run([_bash_executable(), "scripts/dev_down.sh"])
 
 
 def cmd_preflight() -> int:
@@ -464,10 +614,109 @@ def cmd_test() -> int:
 
 
 def cmd_test_ui() -> int:
-    return _run(["npm", "run", "ui:test"])
+    npm_exec = _npm_executable()
+    if npm_exec is None:
+        print("npm is required for ui:test. Install Node.js/npm and retry.")
+        return 127
+    return _run([npm_exec, "run", "ui:test"])
+
+
+def _wait_for_http(url: str, retries: int = 45, delay_seconds: float = 1.0) -> bool:
+    for _ in range(retries):
+        try:
+            with urlopen(url, timeout=1):
+                return True
+        except URLError:
+            time.sleep(delay_seconds)
+    return False
+
+
+def _terminate_process(process: subprocess.Popen[bytes] | subprocess.Popen[str] | None) -> None:
+    if process is None:
+        return
+    if process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        process.kill()
+
+
+def _cmd_test_e2e_windows() -> int:
+    npm_exec = _npm_executable()
+    if npm_exec is None:
+        print("npm is required for e2e tests. Install Node.js/npm and retry.")
+        return 127
+
+    python_exec = _venv_python()
+    env = _env_with_pythonpath()
+    env["OPENCOMMOTION_LLM_PROVIDER"] = "heuristic"
+    env["OPENCOMMOTION_LLM_ALLOW_FALLBACK"] = "true"
+    env["OPENCOMMOTION_STT_ENGINE"] = "auto"
+    env["OPENCOMMOTION_TTS_ENGINE"] = "tone-fallback"
+    env["OPENCOMMOTION_VOICE_REQUIRE_REAL_ENGINES"] = "false"
+    env.setdefault("OPENCOMMOTION_USE_CURRENT_PYTHON", "1")
+    env.setdefault("OPENCOMMOTION_PYTHON_BIN", python_exec.replace("\\", "/"))
+
+    logs_dir = ROOT / "runtime" / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    gateway_log = (logs_dir / "gateway.e2e.log").open("w", encoding="utf-8")
+    orchestrator_log = (logs_dir / "orchestrator.e2e.log").open("w", encoding="utf-8")
+    ui_log = (logs_dir / "ui.e2e.log").open("w", encoding="utf-8")
+
+    gateway_process: subprocess.Popen[str] | None = None
+    orchestrator_process: subprocess.Popen[str] | None = None
+    ui_process: subprocess.Popen[str] | None = None
+
+    try:
+        gateway_process = subprocess.Popen(
+            [python_exec, "-m", "uvicorn", "services.gateway.app.main:app", "--host", "127.0.0.1", "--port", "8000"],
+            cwd=str(ROOT),
+            env=env,
+            stdout=gateway_log,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        orchestrator_process = subprocess.Popen(
+            [python_exec, "-m", "uvicorn", "services.orchestrator.app.main:app", "--host", "127.0.0.1", "--port", "8001"],
+            cwd=str(ROOT),
+            env=env,
+            stdout=orchestrator_log,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        ui_process = subprocess.Popen(
+            [npm_exec, "--workspace", "@opencommotion/ui", "run", "dev", "--", "--host", "127.0.0.1", "--port", "5173"],
+            cwd=str(ROOT),
+            env=env,
+            stdout=ui_log,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+
+        if not _wait_for_http("http://127.0.0.1:8000/health"):
+            print("Gateway failed to become healthy on port 8000.")
+            return 1
+        if not _wait_for_http("http://127.0.0.1:8001/health"):
+            print("Orchestrator failed to become healthy on port 8001.")
+            return 1
+
+        completed = subprocess.run([npm_exec, "run", "e2e"], cwd=str(ROOT), env=env, check=False)
+        return int(completed.returncode)
+    finally:
+        _terminate_process(ui_process)
+        _terminate_process(orchestrator_process)
+        _terminate_process(gateway_process)
+        gateway_log.close()
+        orchestrator_log.close()
+        ui_log.close()
 
 
 def cmd_test_e2e() -> int:
+    if os.name == "nt":
+        return _cmd_test_e2e_windows()
+
     was_running = _stack_running()
     if was_running:
         print("Detected running stack. Temporarily stopping it for browser E2E.")
@@ -475,9 +724,11 @@ def cmd_test_e2e() -> int:
         if stop_code != 0:
             return stop_code
 
+    python_bin = shlex.quote(sys.executable.replace("\\", "/"))
+
     code = _run(
         [
-            "bash",
+            _bash_executable(),
             "-lc",
             (
                 "set -euo pipefail; "
@@ -486,6 +737,8 @@ def cmd_test_e2e() -> int:
                 "export OPENCOMMOTION_STT_ENGINE=auto; "
                 "export OPENCOMMOTION_TTS_ENGINE=tone-fallback; "
                 "export OPENCOMMOTION_VOICE_REQUIRE_REAL_ENGINES=false; "
+                "export OPENCOMMOTION_USE_CURRENT_PYTHON=1; "
+                f"export OPENCOMMOTION_PYTHON_BIN={python_bin}; "
                 "bash scripts/dev_up.sh --ui-mode dev; "
                 "trap 'bash scripts/dev_down.sh' EXIT; "
                 "PW_LIB_DIR=\"$(bash scripts/ensure_playwright_libs.sh)\"; "
@@ -508,12 +761,41 @@ def cmd_test_e2e() -> int:
 
 
 def cmd_test_complete() -> int:
+    npm_exec = _npm_executable()
+
+    def _cmd_test_security() -> int:
+        code = _run([_venv_python(), "-m", "pip", "check"])
+        if code != 0:
+            return code
+        code = _run([_venv_python(), "-m", "pip", "install", "-q", "pip-audit"])
+        if code != 0:
+            return code
+        code = _run([_venv_python(), "-m", "pip_audit", "-r", "requirements.txt", "--no-deps", "--disable-pip", "--progress-spinner", "off", "--timeout", "10"])
+        if code != 0:
+            return code
+        code = _run([_venv_python(), "-m", "pytest", "-q", "-s", "--capture=no", "tests/integration/test_security_baseline.py"])
+        if code != 0:
+            return code
+        if npm_exec is None:
+            print("npm is required for security audit. Install Node.js/npm and retry.")
+            return 127
+        return _run([npm_exec, "audit", "--audit-level=high"])
+
+    def _cmd_test_perf() -> int:
+        code = _run([_venv_python(), "-m", "pytest", "-q", "-s", "--capture=no", "tests/integration/test_performance_thresholds.py"])
+        if code != 0:
+            return code
+        if npm_exec is None:
+            print("npm is required for perf UI test. Install Node.js/npm and retry.")
+            return 127
+        return _run([npm_exec, "--workspace", "@opencommotion/ui", "run", "test", "--", "src/runtime/sceneRuntime.test.ts"])
+
     sequence = [
         ("test", cmd_test),
         ("test-ui", cmd_test_ui),
         ("test-e2e", cmd_test_e2e),
-        ("security", lambda: _run(["bash", "-lc", ". .venv/bin/activate && python -m pip check && python -m pip install -q pip-audit && pip-audit -r requirements.txt --no-deps --disable-pip --progress-spinner off --timeout 10 && PYTHONPATH=$(pwd) pytest -q -s --capture=no tests/integration/test_security_baseline.py && npm audit --audit-level=high"])),
-        ("perf", lambda: _run(["bash", "-lc", ". .venv/bin/activate && PYTHONPATH=$(pwd) pytest -q -s --capture=no tests/integration/test_performance_thresholds.py && npm --workspace @opencommotion/ui run test -- src/runtime/sceneRuntime.test.ts"])),
+        ("security", _cmd_test_security),
+        ("perf", _cmd_test_perf),
     ]
     for _, fn in sequence:
         code = fn()
@@ -523,7 +805,66 @@ def cmd_test_complete() -> int:
 
 
 def cmd_fresh_agent_e2e() -> int:
-    return _run(["bash", "scripts/fresh_agent_consumer_e2e.sh"])
+    if os.name == "nt":
+        python_bin = shlex.quote(_venv_python().replace("\\", "/"))
+        return _run(
+            [
+                _bash_executable(),
+                "-lc",
+                (
+                    "set -euo pipefail; "
+                    "export OPENCOMMOTION_USE_CURRENT_PYTHON=1; "
+                    f"export OPENCOMMOTION_PYTHON_BIN={python_bin}; "
+                    "bash scripts/fresh_agent_consumer_e2e.sh"
+                ),
+            ]
+        )
+    return _run([_bash_executable(), "scripts/fresh_agent_consumer_e2e.sh"])
+
+
+def cmd_voice_setup() -> int:
+    if os.name != "nt":
+        print("voice-setup currently automates Windows only.")
+        print("Set OPENCOMMOTION_TTS_ENGINE=piper and configure Piper model/bin paths in .env.")
+        return 0
+
+    piper_bin = ROOT / PIPER_BIN_REL
+    piper_model = ROOT / PIPER_MODEL_REL
+    piper_config = ROOT / PIPER_CONFIG_REL
+
+    if not piper_bin.exists():
+        print("Installing Piper binary...")
+        archive_path = ROOT / "runtime" / "tools" / "piper" / "piper_windows_amd64.zip"
+        _download_file(PIPER_WINDOWS_URL, archive_path)
+        shutil.unpack_archive(str(archive_path), str(archive_path.parent))
+        archive_path.unlink(missing_ok=True)
+
+    if not piper_model.exists():
+        print("Downloading high-quality Piper model...")
+        _download_file(PIPER_MODEL_URL, piper_model)
+    if not piper_config.exists():
+        _download_file(PIPER_CONFIG_URL, piper_config)
+
+    _set_env_values(
+        {
+            "OPENCOMMOTION_TTS_ENGINE": "piper",
+            "OPENCOMMOTION_PIPER_BIN": str(PIPER_BIN_REL).replace("\\", "/"),
+            "OPENCOMMOTION_PIPER_MODEL": str(PIPER_MODEL_REL).replace("\\", "/"),
+            "OPENCOMMOTION_PIPER_CONFIG": str(PIPER_CONFIG_REL).replace("\\", "/"),
+            "OPENCOMMOTION_AUDIO_ROOT": "data/audio",
+            "ARTIFACT_DB_PATH": "data/artifacts/artifacts.db",
+            "ARTIFACT_BUNDLE_ROOT": "data/artifacts/bundles",
+        }
+    )
+    print("Updated .env with high-quality Piper defaults.")
+
+    verify_code = _verify_piper_engine()
+    if verify_code != 0:
+        print("Piper verification failed. Run 'opencommotion preflight' for details.")
+        return verify_code
+
+    print("Piper voice setup complete (engine=piper verified).")
+    return 0
 
 
 def _tool_exists(name: str) -> bool:
@@ -684,6 +1025,8 @@ def main() -> int:
         return cmd_test_complete()
     if command == "fresh-agent-e2e":
         return cmd_fresh_agent_e2e()
+    if command == "voice-setup":
+        return cmd_voice_setup()
     if command == "doctor":
         return cmd_doctor()
     if command == "quickstart":

@@ -205,7 +205,7 @@ def build_configuration(existing: dict[str, str]) -> tuple[dict[str, str], list[
             ("auto", "Auto (try piper, then espeak, then tone fallback)"),
             ("tone-fallback", "Tone fallback only (dev/testing)"),
         ],
-        default=3,
+        default=0,
     )
     config["OPENCOMMOTION_TTS_ENGINE"] = tts_choice
     if tts_choice == "piper":
@@ -215,9 +215,9 @@ def build_configuration(existing: dict[str, str]) -> tuple[dict[str, str], list[
         )
         config["OPENCOMMOTION_PIPER_MODEL"] = ask(
             "Piper model path",
-            config.get("OPENCOMMOTION_PIPER_MODEL", "/opt/models/en_US-lessac-medium.onnx"),
+            config.get("OPENCOMMOTION_PIPER_MODEL", "data/models/piper/en_US-lessac-high.onnx"),
         )
-        tips.append("Install piper binary and model file")
+        tips.append("Install Piper binary and place a model at data/models/piper/*.onnx")
     elif tts_choice == "espeak":
         config["OPENCOMMOTION_ESPEAK_BIN"] = ask(
             "espeak binary name/path",

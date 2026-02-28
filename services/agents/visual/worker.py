@@ -114,6 +114,7 @@ COUNT_WORDS = {
     "eight": 8,
 }
 VISUAL_TRUE_VALUES = {"1", "true", "yes", "on"}
+VISUAL_FALSE_VALUES = {"0", "false", "no", "off"}
 LEGACY_TEMPLATE_SCENES_ENV = "OPENCOMMOTION_ENABLE_LEGACY_TEMPLATE_SCENES"
 
 
@@ -360,8 +361,13 @@ def _wants_cow_moon_lyric_scene(prompt: str) -> bool:
 
 
 def _legacy_template_scenes_enabled() -> bool:
-    raw = os.getenv(LEGACY_TEMPLATE_SCENES_ENV, "").strip().lower()
-    return raw in VISUAL_TRUE_VALUES
+    raw = os.getenv(LEGACY_TEMPLATE_SCENES_ENV)
+    if raw is None or not raw.strip():
+        return True
+    value = raw.strip().lower()
+    if value in VISUAL_FALSE_VALUES:
+        return False
+    return value in VISUAL_TRUE_VALUES
 
 
 def _extract_count_for_noun(prompt: str, singular: str, plural: str, *, default: int = 1, max_count: int = 8) -> int:
