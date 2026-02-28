@@ -40,6 +40,21 @@ if ($userPath -notmatch [Regex]::Escape($targetDir)) {
 } else {
   Write-Output "Installed Windows launcher: $cmdPath"
 }
+
+# Add Windows Firewall inbound allow rules so WSL2 services are reachable from
+# the Windows browser via the WSL2 localhost relay (NAT mode).
+$fwPorts = @(8000, 8001, 8010, 8011, 5173)
+foreach ($p in $fwPorts) {
+  $rule = "OpenCommotion-$p"
+  Remove-NetFirewallRule -DisplayName $rule -ErrorAction SilentlyContinue
+  try {
+    New-NetFirewallRule -DisplayName $rule -Direction Inbound -Protocol TCP `
+      -LocalPort $p -Action Allow -Profile Any | Out-Null
+    Write-Output "Firewall: allowed inbound TCP $p"
+  } catch {
+    Write-Output "Firewall: could not add rule for port $p (may need admin) - $_"
+  }
+}
 PS1
 
 WINDOWS_PS_SCRIPT="$(wslpath -w "$PS_SCRIPT")"
