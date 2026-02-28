@@ -15,60 +15,22 @@ def test_orchestrate_response_shape() -> None:
     assert 'timeline' in payload
 
 
-def test_orchestrate_fish_scene_2d_and_3d_modes() -> None:
+def test_orchestrate_fish_and_bubble_prompt_routes_to_script_pipeline() -> None:
     c = TestClient(app)
-    two_d = c.post(
+    # Fish/bubble prompts now route through LLM → entity → palette fallback, not pre-canned scenes
+    res = c.post(
         "/v1/orchestrate",
         json={
-            "session_id": "fish-2d",
-            "prompt": "2d fish bowl scene with bubbles and caustic pattern near a window",
+            "session_id": "fish-script",
+            "prompt": "fish swimming in a bowl with bubbles",
         },
     )
-    assert two_d.status_code == 200
-    two_d_kinds = {row["kind"] for row in two_d.json()["visual_strokes"]}
-    assert "setRenderMode" in two_d_kinds
-    assert "emitFx" in two_d_kinds
-
-    three_d = c.post(
-        "/v1/orchestrate",
-        json={
-            "session_id": "fish-3d",
-            "prompt": "3d fish bowl with refraction, shimmer, and volumetric mood shift",
-        },
-    )
-    assert three_d.status_code == 200
-    three_d_kinds = {row["kind"] for row in three_d.json()["visual_strokes"]}
-    assert "setRenderMode" in three_d_kinds
-    assert "applyMaterialFx" in three_d_kinds
-
-
-def test_orchestrate_cow_moon_and_day_night_scenarios(monkeypatch) -> None:
-    monkeypatch.setenv("OPENCOMMOTION_ENABLE_LEGACY_TEMPLATE_SCENES", "1")
-    c = TestClient(app)
-
-    cow = c.post(
-        "/v1/orchestrate",
-        json={
-            "session_id": "cow-moon",
-            "prompt": "A cow jumps over the moon while each word is tracked by a bouncing ball lyric cue",
-        },
-    )
-    assert cow.status_code == 200
-    cow_kinds = {row["kind"] for row in cow.json()["visual_strokes"]}
-    assert "setLyricsTrack" in cow_kinds
-    assert "spawnSceneActor" in cow_kinds
-
-    day_night = c.post(
-        "/v1/orchestrate",
-        json={
-            "session_id": "day-night",
-            "prompt": "elegant scene transition from day to night with smooth mood progression",
-        },
-    )
-    assert day_night.status_code == 200
-    day_night_kinds = {row["kind"] for row in day_night.json()["visual_strokes"]}
-    assert "setEnvironmentMood" in day_night_kinds
-    assert "sceneMorph" in day_night_kinds
+    assert res.status_code == 200
+    kinds = {row["kind"] for row in res.json()["visual_strokes"]}
+    assert "runScreenScript" in kinds or "annotateInsight" in kinds
+    # Pre-canned bowl/caustic actors must be absent
+    spawned = [row for row in res.json()["visual_strokes"] if row.get("kind") == "spawnSceneActor"]
+    assert all(row.get("params", {}).get("actor_id") not in {"fish_bowl", "plant_a"} for row in spawned)
 
 
 def test_orchestrate_draw_box_prompt_generates_shape_scene() -> None:
@@ -86,7 +48,8 @@ def test_orchestrate_draw_box_prompt_generates_shape_scene() -> None:
     assert "spawnCharacter" not in kinds
 
 
-def test_orchestrate_draw_fish_prompt_generates_fish_actor_and_no_dot_fallback() -> None:
+def test_orchestrate_draw_fish_prompt_routes_to_script_pipeline() -> None:
+    # "draw a fish" now routes through LLM/entity/palette — no pre-canned fish actor
     c = TestClient(app)
     res = c.post(
         "/v1/orchestrate",
@@ -96,9 +59,11 @@ def test_orchestrate_draw_fish_prompt_generates_fish_actor_and_no_dot_fallback()
         },
     )
     assert res.status_code == 200
+    kinds = {row["kind"] for row in res.json()["visual_strokes"]}
+    assert "runScreenScript" in kinds
+    # Pre-canned fish_1 actor must not be present
     spawned = [row for row in res.json()["visual_strokes"] if row.get("kind") == "spawnSceneActor"]
-    assert any(row.get("params", {}).get("actor_type") == "fish" for row in spawned)
-    assert all(row.get("params", {}).get("actor_type") != "dot" for row in spawned)
+    assert all(row.get("params", {}).get("actor_id") not in {"fish_1", "goldfish"} for row in spawned)
 
 
 def test_orchestrate_draw_unknown_prompt_uses_palette_script_and_compiles_to_primitives() -> None:

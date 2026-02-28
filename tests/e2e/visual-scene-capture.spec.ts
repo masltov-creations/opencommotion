@@ -96,8 +96,8 @@ test('entity decomposition: house API response has rect walls', async ({ page })
   expect(cmds.some((c) => c.op === 'polygon' && c.id === 'house_roof')).toBeTruthy()
 })
 
-test('legacy canned scenes: market growth requires explicit env flag', async ({ page }) => {
-  // Without any special header, market-growth-style prompt must NOT return drawAdoptionCurve
+test('market growth prompt never produces chart strokes', async ({ page }) => {
+  // Pre-canned scenes are fully deleted — market-growth prompt must never return drawAdoptionCurve
   const res = await page.request.post('http://127.0.0.1:8001/v1/orchestrate', {
     data: {
       session_id: 'screenshot-test-market',

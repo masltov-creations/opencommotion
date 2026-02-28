@@ -34,3 +34,7 @@ data/artifacts/bundles/
 # OS/editor
 .DS_Store
 .vscode/
+
+# Voice model binaries (too large for GitHub)
+data/models/
+runtime/tools/

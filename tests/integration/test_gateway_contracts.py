@@ -3,7 +3,6 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from services.artifact_registry.opencommotion_artifacts.registry import ArtifactRegistry
-from services.agents.visual.quality import evaluate_market_growth_scene
 from services.gateway.app import main as gateway_main
 from services.orchestrator.app.main import app as orchestrator_app
 
@@ -184,26 +183,3 @@ def test_artifact_modes_pin_archive_and_schema_guard(tmp_path, monkeypatch) -> N
     )
     assert bad_bundle.status_code == 422
     assert bad_bundle.json()["detail"]["error"] == "schema_validation_failed"
-
-
-def test_market_growth_graph_quality_report_is_compatible(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("OPENCOMMOTION_ENABLE_LEGACY_TEMPLATE_SCENES", "1")
-    c = _client_with_inprocess_orchestrator(tmp_path, monkeypatch)
-    res = c.post(
-        "/v1/orchestrate",
-        json={
-            "session_id": "market-growth-eval",
-            "prompt": (
-                "animated presentation showcasing market growth and increases in segmented attach within markets; "
-                "graphs should grow as timeline tick proceeds"
-            ),
-        },
-    )
-    assert res.status_code == 200
-    payload = res.json()
-    assert "quality_report" in payload
-    assert payload["quality_report"]["ok"] is True
-    report = evaluate_market_growth_scene(payload["visual_patches"])
-    assert report["ok"] is True
-    assert "adoption_curve_growth_trend" in report["checks"]
-    assert "segmented_attach_targets_valid" in report["checks"]
