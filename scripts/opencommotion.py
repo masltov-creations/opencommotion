@@ -45,6 +45,7 @@ COMMANDS = [
     "quickstart",
     "version",
     "where",
+    "uninstall",
 ]
 COMMAND_FLAG_ALIASES = {
     "-install": "install",
@@ -67,6 +68,7 @@ COMMAND_FLAG_ALIASES = {
     "-quickstart": "quickstart",
     "-version": "version",
     "-where": "where",
+    "-uninstall": "uninstall",
 }
 
 
@@ -926,6 +928,77 @@ def cmd_where() -> int:
     return 0
 
 
+def cmd_uninstall() -> int:
+    """Stop the stack, remove launcher shims, then print the final rm step."""
+    print("Stopping OpenCommotion stack…")
+    cmd_down()
+
+    removed: list[str] = []
+    not_found: list[str] = []
+
+    # ── WSL / Linux launcher ──────────────────────────────────────────────────
+    if _bash_executable() is not None:
+        try:
+            import subprocess as _sp
+            r = _sp.run(
+                [_bash_executable(), "-lc", "rm -f ~/.local/bin/opencommotion && echo removed || echo missing"],
+                capture_output=True, text=True,
+            )
+            if "removed" in r.stdout:
+                removed.append("~/.local/bin/opencommotion (WSL)")
+            else:
+                not_found.append("~/.local/bin/opencommotion (WSL)")
+        except Exception:  # noqa: BLE001
+            not_found.append("~/.local/bin/opencommotion (WSL — could not reach)")
+
+    # ── Windows .cmd shim + PATH entry ────────────────────────────────────────
+    if os.name == "nt":
+        user_profile = os.environ.get("USERPROFILE", "")
+        if user_profile:
+            cmd_shim = Path(user_profile) / ".local" / "bin" / "opencommotion.cmd"
+            if cmd_shim.exists():
+                cmd_shim.unlink()
+                removed.append(str(cmd_shim))
+            else:
+                not_found.append(str(cmd_shim))
+
+        # Strip the shim dir from user PATH
+        ps_snippet = (
+            r"$dir = Join-Path $env:USERPROFILE '.local\bin'; "
+            r"$p = [Environment]::GetEnvironmentVariable('Path','User'); "
+            r"if ($p -match [Regex]::Escape($dir)) { "
+            r"  $clean = ($p -split ';' | Where-Object { $_ -ne $dir }) -join ';'; "
+            r"  [Environment]::SetEnvironmentVariable('Path',$clean,'User'); "
+            r"  Write-Output 'path-cleaned' } else { Write-Output 'path-unchanged' }"
+        )
+        try:
+            import subprocess as _sp2
+            pr = _sp2.run(
+                ["powershell.exe", "-NoProfile", "-Command", ps_snippet],
+                capture_output=True, text=True,
+            )
+            if "path-cleaned" in pr.stdout:
+                print("Removed ~/.local/bin from Windows user PATH (restart PowerShell to take effect).")
+        except Exception:  # noqa: BLE001
+            pass
+
+    for item in removed:
+        print(f"  removed : {item}")
+    for item in not_found:
+        print(f"  skipped : {item} (not found)")
+
+    # ── Final step: delete the install directory ──────────────────────────────
+    print()
+    print("Launchers removed. To complete uninstall, delete the install directory:")
+    if os.name == "nt":
+        print("  wsl rm -rf ~/apps/opencommotion")
+    else:
+        print("  rm -rf ~/apps/opencommotion")
+    print()
+    print("(This script lives inside that directory, so it cannot delete itself.)")
+    return 0
+
+
 def _check_url(url: str) -> tuple[bool, str]:
     try:
         with urlopen(url, timeout=2) as response:
@@ -1035,6 +1108,8 @@ def main() -> int:
         return cmd_version()
     if command == "where":
         return cmd_where()
+    if command == "uninstall":
+        return cmd_uninstall()
     return 2
 
 
