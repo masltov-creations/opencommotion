@@ -356,6 +356,12 @@ function TurnProgressBar({ turnState, elapsedMs, activePrompt }: TurnProgressBar
 
   const trackFill = isCompleted ? '#22d3ee' : isFailed ? '#ef4444' : '#22d3ee'
   const dotColor = isFailed ? '#ef4444' : '#22d3ee'
+  const activeNodeIdx = isRunning
+    ? PIPELINE_NODES.findIndex((node, idx) => {
+      const next = PIPELINE_NODES[idx + 1]
+      return elapsedMs >= node.triggerMs && (!next || elapsedMs < next.triggerMs)
+    })
+    : -1
 
   return (
     <div className={`turn-pipeline-wrap turn-pipeline-${turnState}`} aria-hidden="true">
@@ -383,53 +389,64 @@ function TurnProgressBar({ turnState, elapsedMs, activePrompt }: TurnProgressBar
             <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
           </filter>
           <clipPath id="fill-clip">
-            <rect x="0" y={trackY - 1} width={fillW} height={trackH + 2} rx={trackR} />
+            <rect x="0" y={trackY} width={Math.max(0, fillW)} height={trackH} rx={trackR} ry={trackR} />
           </clipPath>
         </defs>
 
-        {/* Track background */}
-        <rect x={0} y={trackY} width={W} height={trackH} rx={trackR} fill="rgba(148,163,184,0.15)" />
+        <rect
+          x="0"
+          y={trackY}
+          width={W}
+          height={trackH}
+          rx={trackR}
+          ry={trackR}
+          fill="rgba(148,163,184,0.22)"
+        />
 
-        {/* Track fill */}
-        {!isIdle && fillW > 0 ? (
+        {fillW > 0 ? (
           <rect
-            x={0} y={trackY} width={fillW} height={trackH} rx={trackR}
-            fill={isRunning ? 'url(#shimmer-grad)' : trackFill}
-            opacity={isRunning ? 1 : 0.85}
-            className={isRunning ? 'pipeline-fill-shimmer' : ''}
+            x="0"
+            y={trackY}
+            width={W}
+            height={trackH}
+            rx={trackR}
+            ry={trackR}
+            fill="url(#shimmer-grad)"
+            clipPath="url(#fill-clip)"
+            className={isRunning ? 'pipeline-track-fill' : undefined}
           />
         ) : null}
 
-        {/* Nodes */}
         {PIPELINE_NODES.map((node, nodeIdx) => {
-          const nx = node.xPct * W
-          const passed = !isIdle && pct >= node.xPct - 0.01
-          // "current" = the highest-index node the dot has reached or just passed
-          const activeNodeIdx = isRunning
-            ? PIPELINE_NODES.reduce((best, n, i) => (pct >= n.xPct - 0.01 ? i : best), 0)
-            : -1
+          const passed = isCompleted || (!isIdle && elapsedMs >= node.triggerMs)
           const isCurrent = isRunning && nodeIdx === activeNodeIdx
           const nodeR = isCurrent ? 11 : 9
-          const nodeFill = isIdle ? 'rgba(30,58,138,0.6)'
-            : passed && isCompleted ? '#22d3ee'
-              : passed && isFailed ? '#ef4444'
-                : passed ? '#22d3ee'
-                  : 'rgba(30,58,138,0.55)'
+          const nodeFill = isIdle
+            ? 'rgba(30,58,138,0.6)'
+            : passed && isFailed
+              ? '#ef4444'
+              : passed
+                ? '#22d3ee'
+                : 'rgba(30,58,138,0.55)'
           const nodeStroke = passed ? trackFill : 'rgba(148,163,184,0.3)'
+          const cx = node.xPct * W
           return (
             <g key={node.id} filter={isCurrent ? 'url(#node-glow)' : undefined}>
               <circle
-                cx={nx} cy={trackY + trackH / 2} r={nodeR}
-                fill={nodeFill} stroke={nodeStroke} strokeWidth={passed ? 2 : 1.5}
-                className={isCurrent ? 'pipeline-node-pulse' : ''}
+                cx={cx}
+                cy={trackY + trackH / 2}
+                r={nodeR}
+                fill={nodeFill}
+                stroke={nodeStroke}
+                strokeWidth={isCurrent ? 2.2 : 1.2}
               />
               <text
-                x={nx} y={labelY}
+                x={cx}
+                y={labelY}
                 textAnchor="middle"
-                fill={passed ? (isFailed ? '#fca5a5' : '#a5f3fc') : 'rgba(148,163,184,0.55)'}
-                fontSize="13"
-                fontFamily="'Sora','Space Grotesk','Segoe UI',sans-serif"
-                fontWeight={isCurrent ? '700' : '400'}
+                fill={passed ? 'rgba(226,232,240,0.95)' : 'rgba(148,163,184,0.72)'}
+                fontSize="10"
+                fontFamily="'IBM Plex Mono','SFMono-Regular',Menlo,Consolas,monospace"
               >
                 {node.label}
               </text>
@@ -1319,657 +1336,72 @@ export default function App() {
 
   return (
     <div className={`app-shell theme-${colorMode}${funMode ? ' theme-fun' : ''}`}>
-      <header className="brand-bar card">
-        <div className="brand-title">
-          <p className="eyebrow">OpenCommotion Studio</p>
-          <h1>OpenCommotion</h1>
+      <header className={`brand-bar card ${toolsOpen ? 'settings-open' : ''}`}>
+        <div className="brand-top-row">
+          <div className="brand-title">
+            <p className="eyebrow">OpenCommotion Studio</p>
+          </div>
+          <div className="brand-right">
+            <div className="brand-badges">
+              <span className={`badge ${llmReady ? 'ok' : 'warn'}`} title="LLM provider">{llmEffectiveProvider}</span>
+              <span className="badge" title="Speech-to-text engine">STT: {sttEngine}</span>
+              <span className="badge" title="Text-to-speech engine">TTS: {ttsEngine}</span>
+              <span className="badge" title="UI version">UI: v{uiVersion}</span>
+              <span className="badge" title="Build revision">Build: {buildRevisionLabel}</span>
+            </div>
+            <div className="brand-actions">
+              <button
+                className="mode-toggle icon-btn"
+                onClick={() => setColorMode((current) => (current === 'dark' ? 'light' : 'dark'))}
+                title={colorMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                aria-label={colorMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              >
+                <span aria-hidden="true">{colorMode === 'dark' ? '☀' : '🌙'}</span>
+              </button>
+              <button
+                className="theme-toggle icon-btn"
+                onClick={() => setFunMode((current) => !current)}
+                aria-pressed={funMode}
+                title={funMode ? 'Enable calm visuals' : 'Enable fun visuals'}
+                aria-label={funMode ? 'Enable calm visuals' : 'Enable fun visuals'}
+              >
+                <span aria-hidden="true">{funMode ? '◌' : '✨'}</span>
+              </button>
+              <button
+                className={`settings-btn icon-btn ${toolsOpen ? 'active' : ''}`}
+                onClick={() => setToolsOpen((current) => !current)}
+                title="Toggle settings panel"
+                aria-label="Toggle settings panel"
+                aria-expanded={toolsOpen}
+                aria-controls="top-settings-panel"
+              >
+                <span aria-hidden="true">⚙</span>
+              </button>
+              <div
+                className={`status-pill ${llmReady ? 'online' : 'offline'}`}
+                title={llmReady ? 'Online' : 'Offline'}
+                aria-label={llmReady ? 'Online' : 'Offline'}
+              >
+                <span className="turn-status-dot" aria-hidden="true" />
+                <span>{llmReady ? 'Online' : 'Offline'}</span>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="brand-center">
-          <p className={`turn-status turn-status-${turnState} no-margin`}>
-            <span className="turn-status-dot" aria-hidden="true" />
-            <span>
-              {turnStateLabel}
-              {turnState === 'running' ? ` · ${Math.max(1, Math.ceil(turnElapsedMs / 1000))}s` : ''}
-            </span>
-          </p>
-        </div>
-        <div className="brand-right">
-          <div className="brand-badges">
-            <span className={`badge ${llmReady ? 'ok' : 'warn'}`} title="LLM provider">{llmEffectiveProvider}</span>
-            <span className="badge" title="Speech-to-text engine">STT: {sttEngine}</span>
-            <span className="badge" title="Text-to-speech engine">TTS: {ttsEngine}</span>
-            <span className="badge" title="UI version">UI: v{uiVersion}</span>
-            <span className="badge" title="Build revision">Build: {buildRevisionLabel}</span>
-          </div>
-          <button
-            className="mode-toggle"
-            onClick={() => setColorMode((current) => (current === 'dark' ? 'light' : 'dark'))}
-            title="Toggle light or dark mode"
-            aria-label="Toggle light or dark mode"
-          >
-            {colorMode === 'dark' ? '☀ Light' : '🌙 Dark'}
-          </button>
-          <button
-            className="theme-toggle"
-            onClick={() => setFunMode((current) => !current)}
-            aria-pressed={funMode}
-            title="Toggle fun visual mode"
-          >
-            {funMode ? '✨ Calm Mode' : '🎉 Fun Mode'}
-          </button>
-          <button className="settings-btn" onClick={() => setToolsOpen((current) => !current)} title="Open settings">
-            ⚙ Settings
-          </button>
-        </div>
-      </header>
 
-      <main className="studio-layout">
-        <section className="card studio-canvas" data-testid="visual-stage-card">
-          <div className="stage-top-row row">
-            <button onClick={() => setPlaying((v) => !v)} disabled={!patches.length}>
-              {playing ? 'Pause' : 'Play'}
-            </button>
-            <button
-              onClick={() => {
-                setPlaybackMs(0)
-                setPlaying(true)
-              }}
-              disabled={!patches.length}
-            >
-              Replay
-            </button>
-            <span className="stage-meta muted">
-              {patches.length
-                ? `${appliedCount}/${patches.length} patches · ${Math.round(playbackMs)}ms / ${durationMs}ms`
-                : 'No scene yet — enter a prompt below'}
-            </span>
-            {qualityReport && !qualityReport.ok ? (
-              <span className="error">Quality: {qualityReport.failures?.join(', ')}</span>
-            ) : null}
-          </div>
-
-          <svg className="visual-canvas" viewBox="0 0 720 360" aria-label="visual stage">
-            <defs>
-              <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor={mood.phase === 'night' ? '#020617' : mood.phase === 'day-to-dusk' ? '#1e293b' : '#111827'} />
-                <stop offset="100%" stopColor={mood.phase === 'night' ? '#1d4ed8' : mood.phase === 'day-to-dusk' ? '#f59e0b' : '#0ea5e9'} />
-              </linearGradient>
-              {/* 3D lighting / depth filters */}
-              <filter id="shadow3d" x="-20%" y="-20%" width="150%" height="150%">
-                <feDropShadow dx="4" dy="6" stdDeviation="4" floodColor="#000000" floodOpacity="0.45" />
-              </filter>
-              <filter id="shadow3d-lg" x="-20%" y="-10%" width="150%" height="150%">
-                <feDropShadow dx="6" dy="10" stdDeviation="8" floodColor="#000000" floodOpacity="0.5" />
-              </filter>
-              <radialGradient id="sphere-highlight" cx="35%" cy="30%" r="65%">
-                <stop offset="0%" stopColor="#ffffff" stopOpacity="0.55" />
-                <stop offset="50%" stopColor="#ffffff" stopOpacity="0.12" />
-                <stop offset="100%" stopColor="#000000" stopOpacity="0.25" />
-              </radialGradient>
-              <linearGradient id="cube-face-top" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#ffffff" stopOpacity="0.3" />
-                <stop offset="100%" stopColor="#000000" stopOpacity="0.05" />
-              </linearGradient>
-              <linearGradient id="cube-face-right" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="#000000" stopOpacity="0.0" />
-                <stop offset="100%" stopColor="#000000" stopOpacity="0.3" />
-              </linearGradient>
-              <filter id="specular-line" x="-10%" y="-10%" width="130%" height="130%">
-                <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#ffffff" floodOpacity="0.25" />
-              </filter>
-            </defs>
-            <rect x="0" y="0" width="720" height="360" fill="url(#bg)" rx="14" />
-
-            {renderMode === '3d' ? <text x="24" y="104" fill="#f8fafc" fontSize="13">Render mode: 3D</text> : null}
-            {renderMode === '2d' ? <text x="24" y="104" fill="#f8fafc" fontSize="13">Render mode: 2D</text> : null}
-
-            <rect x="420" y="206" width="240" height="120" fill="rgba(2,6,23,0.58)" rx="12" />
-            {linePoints.length >= 2 ? (
-              <polyline
-                points={mapPolyline(linePoints, 440, 220, 180, 80)}
-                fill="none"
-                stroke="#22d3ee"
-                strokeWidth="4"
-              />
-            ) : null}
-
-            {pieSlices.length ? (
-              <g>
-                <circle cx="615" cy="138" r="45" fill="#334155" />
-                <text x="615" y="143" textAnchor="middle" fill="#e2e8f0" fontSize="13">
-                  {pieSlices[0]?.label}: {pieSlices[0]?.value}%
-                </text>
-              </g>
-            ) : null}
-
-            {segmentedValues.length ? (
-              <g>
-                <rect x="430" y="46" width="248" height="140" fill="#020617aa" rx="12" />
-                {segmentedValues.map((segment, idx) => {
-                  const barBaseY = 168
-                  const barHeight = Math.round((segment.current / 100) * 84)
-                  const x = 446 + idx * 76
-                  const y = barBaseY - barHeight
-                  return (
-                    <g key={`seg-${segment.label}`}>
-                      <rect x={x} y={y} width="42" height={barHeight} fill={segment.color || '#22d3ee'} rx="6" />
-                      <text x={x + 21} y={barBaseY + 15} textAnchor="middle" fill="#cbd5e1" fontSize="10">
-                        {segment.label}
-                      </text>
-                      <text x={x + 21} y={y - 4} textAnchor="middle" fill="#e2e8f0" fontSize="10">
-                        {segment.current}%
-                      </text>
-                    </g>
-                  )
-                })}
-              </g>
-            ) : null}
-
-            {causticFx ? (
-              <g opacity={Math.max(0.15, Math.min(0.6, Number(causticFx.intensity || 0.32)))}>
-                <path d="M210 272 C260 228, 338 308, 390 258" stroke="#fde68a" strokeWidth="4" fill="none" />
-                <path d="M240 292 C302 244, 362 316, 426 268" stroke="#fef9c3" strokeWidth="3" fill="none" />
-              </g>
-            ) : null}
-
-            {waterFx ? (
-              <path
-                d={`M250 154 C292 ${150 + Math.sin(playbackMs / 380) * 5}, 362 ${159 + Math.cos(playbackMs / 430) * 6}, 404 153`}
-                stroke="#93c5fd"
-                strokeWidth="2"
-                fill="none"
-                opacity={0.75}
-              />
-            ) : null}
-
-            {actorEntries.map(([id, actor]) => {
-              const x = actor.x ?? 140
-              const y = actor.y ?? 170
-              const actorStyle = (actor.style || {}) as Record<string, unknown>
-
-              if (actor.type === 'character') {
-                return (
-                  <g key={id}>
-                    <circle cx={x} cy={y - 18} r="18" fill="#f59e0b" />
-                    <rect x={x - 16} y={y} width="32" height="54" fill="#fef3c7" rx="8" />
-                    {actor.animation?.name === 'moonwalk' ? (
-                      <text x={x - 30} y={y + 74} fill="#fde68a" fontSize="11">moonwalk</text>
-                    ) : null}
-                  </g>
-                )
-              }
-
-              if (actor.type === 'globe') {
-                if (renderMode === '3d') {
-                  return (
-                    <g key={id} filter="url(#shadow3d)">
-                      <circle cx={x} cy={y} r="36" fill="#3b82f6" />
-                      <circle cx={x} cy={y} r="36" fill="url(#sphere-highlight)" />
-                      <ellipse cx={x} cy={y} rx="36" ry="12" fill="none" stroke="#60a5fa44" strokeWidth="1.5" />
-                      <ellipse cx={x} cy={y} rx="12" ry="36" fill="none" stroke="#60a5fa44" strokeWidth="1.5" />
-                      <ellipse cx={x} cy={y + 40} rx="28" ry="5" fill="#00000044" />
-                    </g>
-                  )
-                }
-                return <circle key={id} cx={x} cy={y} r="36" fill="#3b82f6" />
-              }
-
-              if (actor.type === 'ufo') {
-                return (
-                  <g key={id}>
-                    <ellipse cx={x || 470} cy={y || 95} rx="30" ry="12" fill="#cbd5e1" />
-                    <ellipse cx={x || 470} cy={(y || 95) - 4} rx="12" ry="8" fill="#93c5fd" />
-                    {describeMotion(actor).includes('landing') ? (
-                      <path d={`M${(x || 470) - 10},${(y || 95) + 12} L${x || 470},${(y || 95) + 55} L${(x || 470) + 10},${(y || 95) + 12}`} fill="#fef08a66" />
-                    ) : null}
-                  </g>
-                )
-              }
-
-              if (actor.type === 'bowl') {
-                const bowlShape = styleString(actorStyle, 'shape', 'round')
-                if (bowlShape === 'square') {
-                  return (
-                    <g key={id} filter={renderMode === '3d' ? 'url(#shadow3d-lg)' : undefined}>
-                      <rect x={x - 92} y={y - 82} width="184" height="164" rx="18" fill={renderMode === '3d' ? '#dbeafe55' : '#bfdbfe44'} />
-                      <rect x={x - 92} y={y - 82} width="184" height="164" rx="18" fill="none" stroke="#e0f2fe" strokeWidth={renderMode === '3d' ? 3 : 5} />
-                      {renderMode === '3d' ? <rect x={x - 92} y={y - 82} width="184" height="164" rx="18" fill="url(#sphere-highlight)" /> : null}
-                      <rect x={x - 72} y={y - 66} width="144" height="14" rx="6" fill="#93c5fd55" />
-                      <ellipse cx={x} cy={y + 92} rx="110" ry={renderMode === '3d' ? 22 : 18} fill={renderMode === '3d' ? '#0f172a77' : '#0f172a55'} />
-                    </g>
-                  )
-                }
-                return (
-                  <g key={id} filter={renderMode === '3d' ? 'url(#shadow3d-lg)' : undefined}>
-                    <ellipse cx={x} cy={y + 46} rx="118" ry={renderMode === '3d' ? 22 : 18} fill={renderMode === '3d' ? '#0f172a77' : '#0f172a55'} />
-                    <ellipse cx={x} cy={y} rx="94" ry="86" fill={renderMode === '3d' ? '#dbeafe55' : '#bfdbfe44'} />
-                    <ellipse cx={x} cy={y - 1} rx="94" ry="86" fill="none" stroke="#e0f2fe" strokeWidth={renderMode === '3d' ? 3 : 5} />
-                    {renderMode === '3d' ? <ellipse cx={x} cy={y} rx="94" ry="86" fill="url(#sphere-highlight)" /> : null}
-                    <ellipse cx={x} cy={y - 54} rx="66" ry="13" fill="#93c5fd55" />
-                  </g>
-                )
-              }
-
-              if (actor.type === 'fish') {
-                const pos = actorPathPosition(actor, playbackMs, 310, 205)
-                const fishFill = styleString(actorStyle, 'fill', '#f59e0b')
-                const fishTail = styleString(actorStyle, 'tail', fishFill)
-                if (renderMode === '3d') {
-                  return (
-                    <g key={id} filter="url(#shadow3d)">
-                      <ellipse cx={pos.x} cy={pos.y} rx="26" ry="15" fill={fishFill} />
-                      <ellipse cx={pos.x} cy={pos.y} rx="26" ry="15" fill="url(#sphere-highlight)" />
-                      <polygon points={`${pos.x - 24},${pos.y} ${pos.x - 44},${pos.y - 13} ${pos.x - 44},${pos.y + 13}`} fill={fishTail} />
-                      <circle cx={pos.x + 12} cy={pos.y - 4} r="3" fill="#111827" />
-                      <circle cx={pos.x + 11} cy={pos.y - 5} r="1.2" fill="#ffffff" />
-                      <ellipse cx={pos.x} cy={pos.y + 18} rx="18" ry="3" fill="#00000033" />
-                    </g>
-                  )
-                }
-                return (
-                  <g key={id}>
-                    <ellipse cx={pos.x} cy={pos.y} rx="24" ry="13" fill={fishFill} />
-                    <polygon points={`${pos.x - 23},${pos.y} ${pos.x - 41},${pos.y - 11} ${pos.x - 41},${pos.y + 11}`} fill={fishTail} />
-                    <circle cx={pos.x + 11} cy={pos.y - 3} r="2.4" fill="#111827" />
-                  </g>
-                )
-              }
-
-              if (actor.type === 'cow') {
-                const pos = actorPathPosition(actor, playbackMs, x, y)
-                return (
-                  <g key={id}>
-                    <rect x={pos.x - 34} y={pos.y - 20} width="68" height="38" fill="#f8fafc" rx="10" />
-                    <circle cx={pos.x + 25} cy={pos.y - 14} r="12" fill="#f8fafc" />
-                    <circle cx={pos.x + 18} cy={pos.y - 14} r="2" fill="#111827" />
-                    <circle cx={pos.x + 28} cy={pos.y - 14} r="2" fill="#111827" />
-                    <rect x={pos.x - 30} y={pos.y + 15} width="8" height="18" fill="#f8fafc" rx="2" />
-                    <rect x={pos.x - 10} y={pos.y + 15} width="8" height="18" fill="#f8fafc" rx="2" />
-                    <rect x={pos.x + 10} y={pos.y + 15} width="8" height="18" fill="#f8fafc" rx="2" />
-                    <rect x={pos.x + 26} y={pos.y + 15} width="8" height="18" fill="#f8fafc" rx="2" />
-                  </g>
-                )
-              }
-
-              if (actor.type === 'moon') {
-                return (
-                  <g key={id}>
-                    <circle cx={x} cy={y} r="34" fill="#fef3c7" />
-                    <circle cx={x + 10} cy={y - 8} r="6" fill="#fde68a" />
-                    <circle cx={x - 12} cy={y + 10} r="5" fill="#fde68a" />
-                  </g>
-                )
-              }
-
-              if (actor.type === 'plant') {
-                const sway = actor.animation?.name === 'sway' ? Math.sin(playbackMs / 420) * 7 : 0
-                return (
-                  <g key={id}>
-                    <path d={`M${x},${y} C${x - 10 + sway},${y - 38} ${x + 16 + sway},${y - 74} ${x + 2 + sway},${y - 116}`} stroke="#4ade80" strokeWidth="4" fill="none" />
-                    <path d={`M${x + 4},${y - 8} C${x + 10 + sway},${y - 42} ${x - 8 + sway},${y - 76} ${x + 10 + sway},${y - 110}`} stroke="#22c55e" strokeWidth="3" fill="none" />
-                  </g>
-                )
-              }
-
-              if (actor.type === 'box' || actor.type === 'square' || actor.type === 'rectangle') {
-                const pos = actorPathPosition(actor, playbackMs, x, y)
-                const width = styleNumber(actorStyle, 'width', actor.type === 'rectangle' ? 140 : 96)
-                const height = styleNumber(actorStyle, 'height', actor.type === 'rectangle' ? 84 : width)
-                const fill = styleString(actorStyle, 'fill', '#22d3ee')
-                const stroke = styleString(actorStyle, 'stroke', '#e2e8f0')
-                const lineWidth = styleNumber(actorStyle, 'line_width', 4)
-                if (renderMode === '3d') {
-                  const d = 18
-                  const lx = pos.x - width / 2
-                  const ly = pos.y - height / 2
-                  return (
-                    <g key={id} filter="url(#shadow3d)">
-                      {/* right face */}
-                      <polygon
-                        points={`${lx + width},${ly} ${lx + width + d},${ly - d} ${lx + width + d},${ly - d + height} ${lx + width},${ly + height}`}
-                        fill={fill}
-                        opacity={0.55}
-                      />
-                      {/* top face */}
-                      <polygon
-                        points={`${lx},${ly} ${lx + d},${ly - d} ${lx + width + d},${ly - d} ${lx + width},${ly}`}
-                        fill={fill}
-                        opacity={0.75}
-                      />
-                      {/* front face */}
-                      <rect x={lx} y={ly} width={width} height={height} fill={fill} stroke={stroke} strokeWidth={lineWidth} rx={4} />
-                      <rect x={lx} y={ly} width={width} height={height} fill="url(#cube-face-right)" rx={4} />
-                    </g>
-                  )
-                }
-                return (
-                  <rect
-                    key={id}
-                    x={pos.x - width / 2}
-                    y={pos.y - height / 2}
-                    width={width}
-                    height={height}
-                    fill={fill}
-                    stroke={stroke}
-                    strokeWidth={lineWidth}
-                    rx={actor.type === 'square' ? 8 : 10}
-                  />
-                )
-              }
-
-              if (actor.type === 'circle' || actor.type === 'dot') {
-                const pos = actorPathPosition(actor, playbackMs, x, y)
-                const fill = styleString(actorStyle, 'fill', '#22d3ee')
-                const stroke = styleString(actorStyle, 'stroke', '#e2e8f0')
-                const lineWidth = styleNumber(actorStyle, 'line_width', 3)
-                const radius = styleNumber(actorStyle, 'radius', actor.type === 'dot' ? 8 : 44)
-                if (renderMode === '3d') {
-                  return (
-                    <g key={id} filter="url(#shadow3d)">
-                      <circle cx={pos.x} cy={pos.y} r={radius} fill={fill} stroke={stroke} strokeWidth={lineWidth} />
-                      <circle cx={pos.x} cy={pos.y} r={radius} fill="url(#sphere-highlight)" />
-                      <ellipse cx={pos.x} cy={pos.y + radius + 6} rx={radius * 0.8} ry={4} fill="#00000044" />
-                    </g>
-                  )
-                }
-                return <circle key={id} cx={pos.x} cy={pos.y} r={radius} fill={fill} stroke={stroke} strokeWidth={lineWidth} />
-              }
-
-              if (actor.type === 'line') {
-                const pos = actorPathPosition(actor, playbackMs, x, y)
-                const dx = pos.x - x
-                const dy = pos.y - y
-                const x2 = styleNumber(actorStyle, 'x2', x + 180)
-                const y2 = styleNumber(actorStyle, 'y2', y)
-                const stroke = styleString(actorStyle, 'stroke', '#22d3ee')
-                const lineWidth = styleNumber(actorStyle, 'line_width', 4)
-                if (renderMode === '3d') {
-                  return (
-                    <g key={id} filter="url(#specular-line)">
-                      <line x1={x + dx} y1={y + dy} x2={x2 + dx} y2={y2 + dy} stroke={stroke} strokeWidth={lineWidth + 2} strokeLinecap="round" />
-                      <line x1={x + dx} y1={y + dy} x2={x2 + dx} y2={y2 + dy} stroke="#ffffff44" strokeWidth={Math.max(1, lineWidth - 1)} strokeLinecap="round" />
-                    </g>
-                  )
-                }
-                return <line key={id} x1={x + dx} y1={y + dy} x2={x2 + dx} y2={y2 + dy} stroke={stroke} strokeWidth={lineWidth} />
-              }
-
-              if (actor.type === 'triangle') {
-                const pos = actorPathPosition(actor, playbackMs, x, y)
-                const size = styleNumber(actorStyle, 'size', 100)
-                const fill = styleString(actorStyle, 'fill', '#22d3ee')
-                const stroke = styleString(actorStyle, 'stroke', '#e2e8f0')
-                const lineWidth = styleNumber(actorStyle, 'line_width', 4)
-                const p1 = `${pos.x},${pos.y - size / 2}`
-                const p2 = `${pos.x - size / 2},${pos.y + size / 2}`
-                const p3 = `${pos.x + size / 2},${pos.y + size / 2}`
-                if (renderMode === '3d') {
-                  const d = 14
-                  const rp1 = `${pos.x + d},${pos.y - size / 2 - d}`
-                  const rp3 = `${pos.x + size / 2 + d},${pos.y + size / 2 - d}`
-                  return (
-                    <g key={id} filter="url(#shadow3d)">
-                      {/* right depth face */}
-                      <polygon points={`${p1} ${rp1} ${rp3} ${p3}`} fill={fill} opacity={0.45} />
-                      {/* front face */}
-                      <polygon points={`${p1} ${p2} ${p3}`} fill={fill} stroke={stroke} strokeWidth={lineWidth} />
-                      {/* specular edge */}
-                      <line x1={pos.x} y1={pos.y - size / 2} x2={pos.x - size / 4} y2={pos.y} stroke="#ffffff44" strokeWidth={2} />
-                    </g>
-                  )
-                }
-                return <polygon key={id} points={`${p1} ${p2} ${p3}`} fill={fill} stroke={stroke} strokeWidth={lineWidth} />
-              }
-
-              if (actor.type === 'polyline') {
-                const pos = actorPathPosition(actor, playbackMs, x, y)
-                const dx = pos.x - x
-                const dy = pos.y - y
-                const stroke = styleString(actorStyle, 'stroke', '#22d3ee')
-                const lineWidth = styleNumber(actorStyle, 'line_width', 4)
-                const points = parseStylePoints(actorStyle)
-                if (points.length < 2) {
-                  return null
-                }
-                const polylinePoints = points.map((row) => `${row[0] + dx},${row[1] + dy}`).join(' ')
-                if (renderMode === '3d') {
-                  return (
-                    <g key={id} filter="url(#specular-line)">
-                      <polyline points={polylinePoints} fill="none" stroke={stroke} strokeWidth={lineWidth + 2} strokeLinecap="round" strokeLinejoin="round" />
-                      <polyline points={polylinePoints} fill="none" stroke="#ffffff33" strokeWidth={Math.max(1, lineWidth - 1)} strokeLinecap="round" strokeLinejoin="round" />
-                    </g>
-                  )
-                }
-                return <polyline key={id} points={polylinePoints} fill="none" stroke={stroke} strokeWidth={lineWidth} />
-              }
-
-              if (actor.type === 'polygon') {
-                const pos = actorPathPosition(actor, playbackMs, x, y)
-                const dx = pos.x - x
-                const dy = pos.y - y
-                const fill = styleString(actorStyle, 'fill', '#22d3ee')
-                const stroke = styleString(actorStyle, 'stroke', '#e2e8f0')
-                const lineWidth = styleNumber(actorStyle, 'line_width', 2)
-                const points = parseStylePoints(actorStyle)
-                if (points.length < 3) {
-                  return null
-                }
-                const polygonPoints = points.map((row) => `${row[0] + dx},${row[1] + dy}`).join(' ')
-                if (renderMode === '3d') {
-                  return (
-                    <g key={id} filter="url(#shadow3d)">
-                      <polygon points={polygonPoints} fill={fill} stroke={stroke} strokeWidth={lineWidth} />
-                      <polygon points={polygonPoints} fill="url(#sphere-highlight)" />
-                    </g>
-                  )
-                }
-                return <polygon key={id} points={polygonPoints} fill={fill} stroke={stroke} strokeWidth={lineWidth} />
-              }
-
-              if (actor.type === 'rect') {
-                const pos = actorPathPosition(actor, playbackMs, x, y)
-                const width = styleNumber(actorStyle, 'width', 80)
-                const height = styleNumber(actorStyle, 'height', 50)
-                const fill = styleString(actorStyle, 'fill', '#22d3ee')
-                const stroke = styleString(actorStyle, 'stroke', '#e2e8f0')
-                const lineWidth = styleNumber(actorStyle, 'line_width', 2)
-                if (renderMode === '3d') {
-                  const d = Math.round(Math.min(width, height) * 0.16)
-                  return (
-                    <g key={id} filter="url(#shadow3d)">
-                      <polygon
-                        points={`${pos.x + width},${pos.y} ${pos.x + width + d},${pos.y - d} ${pos.x + width + d},${pos.y - d + height} ${pos.x + width},${pos.y + height}`}
-                        fill={fill} opacity={0.55}
-                      />
-                      <polygon
-                        points={`${pos.x},${pos.y} ${pos.x + d},${pos.y - d} ${pos.x + width + d},${pos.y - d} ${pos.x + width},${pos.y}`}
-                        fill={fill} opacity={0.75}
-                      />
-                      <rect x={pos.x} y={pos.y} width={width} height={height} fill={fill} stroke={stroke} strokeWidth={lineWidth} rx={3} />
-                      <rect x={pos.x} y={pos.y} width={width} height={height} fill="url(#cube-face-right)" rx={3} />
-                    </g>
-                  )
-                }
-                return <rect key={id} x={pos.x} y={pos.y} width={width} height={height} fill={fill} stroke={stroke} strokeWidth={lineWidth} rx={3} />
-              }
-
-              if (actor.type === 'ellipse') {
-                const pos = actorPathPosition(actor, playbackMs, x, y)
-                const rx = styleNumber(actorStyle, 'rx', 50)
-                const ry = styleNumber(actorStyle, 'ry', 30)
-                const fill = styleString(actorStyle, 'fill', '#22d3ee')
-                const stroke = styleString(actorStyle, 'stroke', '#e2e8f0')
-                const lineWidth = styleNumber(actorStyle, 'line_width', 2)
-                const fillAttr = fill === 'none' ? 'none' : fill
-                if (renderMode === '3d') {
-                  return (
-                    <g key={id} filter="url(#shadow3d)">
-                      <ellipse cx={pos.x} cy={pos.y} rx={rx} ry={ry} fill={fillAttr} stroke={stroke} strokeWidth={lineWidth} />
-                      {fillAttr !== 'none' ? <ellipse cx={pos.x} cy={pos.y} rx={rx} ry={ry} fill="url(#sphere-highlight)" /> : null}
-                      <ellipse cx={pos.x} cy={pos.y + ry + 5} rx={rx * 0.75} ry={4} fill="#00000033" />
-                    </g>
-                  )
-                }
-                return <ellipse key={id} cx={pos.x} cy={pos.y} rx={rx} ry={ry} fill={fillAttr} stroke={stroke} strokeWidth={lineWidth} />
-              }
-
-              if (actor.type === 'text') {
-                const textContent = styleString(actorStyle, 'text', '')
-                const fill = styleString(actorStyle, 'fill', '#f8fafc')
-                const fontSize = styleNumber(actorStyle, 'font_size', 16)
-                const anchor = styleString(actorStyle, 'anchor', 'middle') as 'start' | 'middle' | 'end'
-                if (!textContent) return null
-                return (
-                  <text key={id} x={x} y={y} fill={fill} fontSize={fontSize} textAnchor={anchor} dominantBaseline="middle">
-                    {textContent}
-                  </text>
-                )
-              }
-
-              return null
-            })}
-
-            {(bubbleFx?.particles || []).slice(0, 28).map((particle, idx) => {
-              const startX = Number(particle.x || 0.5)
-              const startY = Number(particle.start_y || 0.84)
-              const size = Number(particle.size || 3.5)
-              const rise = Number(particle.rise_per_s || 0.08)
-              const drift = Number(particle.drift || 0)
-              const phase = Number(particle.phase || 0)
-              const timeS = playbackMs / 1000
-              const yNorm = startY - ((timeS * rise + phase) % 0.85)
-              const xNorm = startX + Math.sin((timeS + phase) * 2.4) * drift
-              const cx = 230 + xNorm * 210
-              const cy = 120 + yNorm * 170
-              return <circle key={`bubble-${idx}`} cx={cx} cy={cy} r={size * 0.55} fill="#dbeafe99" stroke="#ffffff88" strokeWidth="0.7" />
-            })}
-
-            {lyricsWords.length ? (
-              <g>
-                {lyricsWords.map((word, idx) => {
-                  const x = 80 + idx * 88
-                  return (
-                    <text key={`lyric-${idx}`} x={x} y={338} textAnchor="middle" fill="#f8fafc" fontSize="20">
-                      {word.text}
-                    </text>
-                  )
-                })}
-                {bounceFx ? (() => {
-                  const startMs = Number(bounceFx.start_ms || scene.lyrics.start_ms || 0)
-                  const stepMs = Math.max(120, Number(bounceFx.step_ms || scene.lyrics.step_ms || 420))
-                  const idx = Math.max(
-                    0,
-                    Math.min(lyricsWords.length - 1, Math.floor((playbackMs - startMs) / stepMs)),
-                  )
-                  const ballX = 80 + idx * 88
-                  const bob = 8 + Math.abs(Math.sin(playbackMs / 160)) * 10
-                  return <circle cx={ballX} cy={328 - bob} r="8" fill="#f43f5e" />
-                })() : null}
-              </g>
-            ) : null}
-
-            <text x="24" y="32" fill="#e2e8f0" fontSize="20">Patch count: {patches.length}</text>
-            <text x="24" y="56" fill="#cbd5e1" fontSize="14">Applied: {appliedCount}</text>
-            <text x="24" y="80" fill="#cbd5e1" fontSize="14">Playback: {Math.round(playbackMs)}ms / {durationMs}ms</text>
-
-            {scene.annotations.slice(-2).map((a, idx) => (
-              <text key={`${a.text}-${idx}`} x="24" y={324 - idx * 20} fill="#f8fafc" fontSize="13">{a.text}</text>
-            ))}
-          </svg>
-        </section>
-
-        <section className="card studio-composer" data-testid="prompt-composer">
-          {/* Accessible status text for e2e tests — visually hidden */}
-          <span
-            className="sr-only"
-            data-testid="turn-status"
-            role="status"
-            aria-live="polite"
-          >
-            {turnStateLabel}
-          </span>
-          <TurnProgressBar
-            turnState={turnState}
-            elapsedMs={turnElapsedMs}
-            activePrompt={activePromptPreview}
-          />
-          <textarea
-            aria-label="prompt input"
-            className="composer-input"
-            rows={3}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !running) {
-                e.preventDefault()
-                void runTurn()
-              }
-            }}
-            placeholder="Describe a scene… (Ctrl+Enter to run)"
-          />
-          <div className="row composer-actions">
-            <button className="run-btn" onClick={runTurn} disabled={running} data-testid="run-turn-btn">
-              {running ? '⏳ Running…' : '▶ Run Turn'}
-            </button>
-            <button onClick={saveArtifact} disabled={!text} title="Save this result as an artifact">Save</button>
-            <button onClick={() => setToolsOpen((current) => !current)} title="Open settings and tools">
-              {toolsOpen ? 'Hide Tools' : '⚙ Tools'}
-            </button>
-          </div>
-          {lastError ? <p className="error">{lastError}</p> : null}
-        </section>
-
-        <section className="card studio-log" data-testid="agent-log-panel">
-          <div className="row controls">
-            <h2>Backend Agent Thread</h2>
-            <button onClick={() => setAgentLog([])} disabled={!agentLog.length}>Clear</button>
-          </div>
-          <p className="muted">Live event stream: what the backend agent says and what it is doing.</p>
-          <div className="agent-log-window" role="log" aria-live="polite">
-            {agentLog.length ? (
-              [...agentLog].reverse().map((entry) => (
-                <p className="agent-log-row" key={entry.id}>
-                  <span className="agent-log-time">[{entry.at}]</span>
-                  <span className="agent-log-event">{entry.event_type}</span>
-                  <span className="agent-log-message">{entry.message}</span>
-                </p>
-              ))
-            ) : (
-              <p className="muted">No backend events yet.</p>
-            )}
-          </div>
-        </section>
-        <aside className={`card studio-inspector ${toolsOpen ? 'open' : 'collapsed'}`} aria-label="settings panel">
+        <aside
+          id="top-settings-panel"
+          className={`studio-inspector ${toolsOpen ? 'open' : 'collapsed'}`}
+          aria-label="settings panel"
+          aria-hidden={!toolsOpen}
+        >
           <div className="inspector-header">
             <div>
-              <p className="eyebrow">Control panel</p>
               <h2>Settings</h2>
             </div>
-            <button onClick={() => setToolsOpen((current) => !current)} aria-expanded={toolsOpen}>
-              {toolsOpen ? 'Hide' : 'Show'}
-            </button>
           </div>
 
           <div className="inspector-panel">
-              <section className="setup-panel settings-summary">
-                <h3>System Status</h3>
-                <p className="muted">Build: {buildRevisionLabel}</p>
-                <p className="muted">LLM route: {llmEffectiveProvider}</p>
-                <p className="muted">LLM ready: {llmReady ? 'yes' : 'needs config'}</p>
-                <p className="muted">STT engine: {sttEngine}</p>
-                <p className="muted">TTS engine: {ttsEngine}</p>
-                {runtimeCaps?.llm?.message ? <p className="error">{runtimeCaps.llm.message}</p> : null}
-                {capsError ? <p className="error">{capsError}</p> : null}
-                <div className="row settings-summary-actions">
-                  <button onClick={refreshRuntimeCapabilities} disabled={capsLoading}>
-                    {capsLoading ? 'Refreshing...' : 'Refresh Setup'}
-                  </button>
-                  <button onClick={loadSetupState} disabled={setupLoading}>
-                    {setupLoading ? 'Loading...' : 'Load Setup State'}
-                  </button>
-                </div>
-              </section>
-
               <div className="inspector-tabs" role="tablist" aria-label="settings sections">
                 <button className={settingsTab === 'overview' ? 'active' : ''} onClick={() => setSettingsTab('overview')} role="tab" aria-selected={settingsTab === 'overview'}>Runtime</button>
                 <button className={settingsTab === 'voice' ? 'active' : ''} onClick={() => setSettingsTab('voice')} role="tab" aria-selected={settingsTab === 'voice'}>Voice</button>
@@ -1989,9 +1421,16 @@ export default function App() {
                   <p className="muted">Current route: {llmEffectiveProvider}</p>
                   <p className="muted">LLM selected: {llmProvider}</p>
                   <p className="muted">LLM ready: {llmReady ? 'yes' : 'needs config'}</p>
-                  <button onClick={refreshRuntimeCapabilities} disabled={capsLoading}>
-                    {capsLoading ? 'Refreshing...' : 'Refresh Runtime'}
-                  </button>
+                  {runtimeCaps?.llm?.message ? <p className="error">{runtimeCaps.llm.message}</p> : null}
+                  {capsError ? <p className="error">{capsError}</p> : null}
+                  <div className="row settings-summary-actions">
+                    <button onClick={refreshRuntimeCapabilities} disabled={capsLoading}>
+                      {capsLoading ? 'Refreshing...' : 'Refresh Runtime'}
+                    </button>
+                    <button onClick={loadSetupState} disabled={setupLoading}>
+                      {setupLoading ? 'Loading...' : 'Load Setup State'}
+                    </button>
+                  </div>
                 </section>
               ) : null}
 
@@ -2240,6 +1679,581 @@ export default function App() {
               </div>
             </div>
         </aside>
+      </header>
+
+      <main className="studio-layout">
+        <section className="card studio-canvas" data-testid="visual-stage-card">
+          <div className="stage-top-row row">
+            <button onClick={() => setPlaying((v) => !v)} disabled={!patches.length}>
+              {playing ? 'Pause' : 'Play'}
+            </button>
+            <button
+              onClick={() => {
+                setPlaybackMs(0)
+                setPlaying(true)
+              }}
+              disabled={!patches.length}
+            >
+              Replay
+            </button>
+            <span className="stage-meta muted">
+              {patches.length
+                ? `${appliedCount}/${patches.length} patches · ${Math.round(playbackMs)}ms / ${durationMs}ms`
+                : 'No scene yet — enter a prompt below'}
+            </span>
+            {qualityReport && !qualityReport.ok ? (
+              <span className="error">Quality: {qualityReport.failures?.join(', ')}</span>
+            ) : null}
+          </div>
+
+          <svg className="visual-canvas" viewBox="0 0 720 360" aria-label="visual stage">
+            <defs>
+              <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor={mood.phase === 'night' ? '#020617' : mood.phase === 'day-to-dusk' ? '#1e293b' : '#111827'} />
+                <stop offset="100%" stopColor={mood.phase === 'night' ? '#7c3aed' : mood.phase === 'day-to-dusk' ? '#f59e0b' : '#14b8a6'} />
+              </linearGradient>
+              {/* 3D lighting / depth filters */}
+              <filter id="shadow3d" x="-20%" y="-20%" width="150%" height="150%">
+                <feDropShadow dx="4" dy="6" stdDeviation="4" floodColor="#000000" floodOpacity="0.45" />
+              </filter>
+              <filter id="shadow3d-lg" x="-20%" y="-10%" width="150%" height="150%">
+                <feDropShadow dx="6" dy="10" stdDeviation="8" floodColor="#000000" floodOpacity="0.5" />
+              </filter>
+              <radialGradient id="sphere-highlight" cx="35%" cy="30%" r="65%">
+                <stop offset="0%" stopColor="#ffffff" stopOpacity="0.55" />
+                <stop offset="50%" stopColor="#ffffff" stopOpacity="0.12" />
+                <stop offset="100%" stopColor="#000000" stopOpacity="0.25" />
+              </radialGradient>
+              <linearGradient id="cube-face-top" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#ffffff" stopOpacity="0.3" />
+                <stop offset="100%" stopColor="#000000" stopOpacity="0.05" />
+              </linearGradient>
+              <linearGradient id="cube-face-right" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#000000" stopOpacity="0.0" />
+                <stop offset="100%" stopColor="#000000" stopOpacity="0.3" />
+              </linearGradient>
+              <filter id="specular-line" x="-10%" y="-10%" width="130%" height="130%">
+                <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#ffffff" floodOpacity="0.25" />
+              </filter>
+            </defs>
+            <rect x="0" y="0" width="720" height="360" fill="url(#bg)" rx="14" />
+
+            {renderMode === '3d' ? <text x="24" y="104" fill="#f8fafc" fontSize="13">Render mode: 3D</text> : null}
+            {renderMode === '2d' ? <text x="24" y="104" fill="#f8fafc" fontSize="13">Render mode: 2D</text> : null}
+
+            <rect x="420" y="206" width="240" height="120" fill="rgba(2,6,23,0.58)" rx="12" />
+            {linePoints.length >= 2 ? (
+              <polyline
+                points={mapPolyline(linePoints, 440, 220, 180, 80)}
+                fill="none"
+                stroke="#f59e0b"
+                strokeWidth="4"
+              />
+            ) : null}
+
+            {pieSlices.length ? (
+              <g>
+                <circle cx="615" cy="138" r="45" fill="#334155" />
+                <text x="615" y="143" textAnchor="middle" fill="#e2e8f0" fontSize="13">
+                  {pieSlices[0]?.label}: {pieSlices[0]?.value}%
+                </text>
+              </g>
+            ) : null}
+
+            {segmentedValues.length ? (
+              <g>
+                <rect x="430" y="46" width="248" height="140" fill="#020617aa" rx="12" />
+                {segmentedValues.map((segment, idx) => {
+                  const barBaseY = 168
+                  const barHeight = Math.round((segment.current / 100) * 84)
+                  const x = 446 + idx * 76
+                  const y = barBaseY - barHeight
+                  return (
+                    <g key={`seg-${segment.label}`}>
+                      <rect x={x} y={y} width="42" height={barHeight} fill={segment.color || '#f59e0b'} rx="6" />
+                      <text x={x + 21} y={barBaseY + 15} textAnchor="middle" fill="#cbd5e1" fontSize="10">
+                        {segment.label}
+                      </text>
+                      <text x={x + 21} y={y - 4} textAnchor="middle" fill="#e2e8f0" fontSize="10">
+                        {segment.current}%
+                      </text>
+                    </g>
+                  )
+                })}
+              </g>
+            ) : null}
+
+            {causticFx ? (
+              <g opacity={Math.max(0.15, Math.min(0.6, Number(causticFx.intensity || 0.32)))}>
+                <path d="M210 272 C260 228, 338 308, 390 258" stroke="#fde68a" strokeWidth="4" fill="none" />
+                <path d="M240 292 C302 244, 362 316, 426 268" stroke="#fef9c3" strokeWidth="3" fill="none" />
+              </g>
+            ) : null}
+
+            {waterFx ? (
+              <path
+                d={`M250 154 C292 ${150 + Math.sin(playbackMs / 380) * 5}, 362 ${159 + Math.cos(playbackMs / 430) * 6}, 404 153`}
+                stroke="#c084fc"
+                strokeWidth="2"
+                fill="none"
+                opacity={0.75}
+              />
+            ) : null}
+
+            {actorEntries.map(([id, actor]) => {
+              const x = actor.x ?? 140
+              const y = actor.y ?? 170
+              const actorStyle = (actor.style || {}) as Record<string, unknown>
+
+              if (actor.type === 'character') {
+                return (
+                  <g key={id}>
+                    <circle cx={x} cy={y - 18} r="18" fill="#f59e0b" />
+                    <rect x={x - 16} y={y} width="32" height="54" fill="#fef3c7" rx="8" />
+                    {actor.animation?.name === 'moonwalk' ? (
+                      <text x={x - 30} y={y + 74} fill="#fde68a" fontSize="11">moonwalk</text>
+                    ) : null}
+                  </g>
+                )
+              }
+
+              if (actor.type === 'globe') {
+                if (renderMode === '3d') {
+                  return (
+                    <g key={id} filter="url(#shadow3d)">
+                      <circle cx={x} cy={y} r="36" fill="#8b5cf6" />
+                      <circle cx={x} cy={y} r="36" fill="url(#sphere-highlight)" />
+                      <ellipse cx={x} cy={y} rx="36" ry="12" fill="none" stroke="#f0abfc44" strokeWidth="1.5" />
+                      <ellipse cx={x} cy={y} rx="12" ry="36" fill="none" stroke="#f0abfc44" strokeWidth="1.5" />
+                      <ellipse cx={x} cy={y + 40} rx="28" ry="5" fill="#00000044" />
+                    </g>
+                  )
+                }
+                return <circle key={id} cx={x} cy={y} r="36" fill="#8b5cf6" />
+              }
+
+              if (actor.type === 'ufo') {
+                return (
+                  <g key={id}>
+                    <ellipse cx={x || 470} cy={y || 95} rx="30" ry="12" fill="#cbd5e1" />
+                    <ellipse cx={x || 470} cy={(y || 95) - 4} rx="12" ry="8" fill="#f5d0fe" />
+                    {describeMotion(actor).includes('landing') ? (
+                      <path d={`M${(x || 470) - 10},${(y || 95) + 12} L${x || 470},${(y || 95) + 55} L${(x || 470) + 10},${(y || 95) + 12}`} fill="#fef08a66" />
+                    ) : null}
+                  </g>
+                )
+              }
+
+              if (actor.type === 'bowl') {
+                const bowlShape = styleString(actorStyle, 'shape', 'round')
+                if (bowlShape === 'square') {
+                  return (
+                    <g key={id} filter={renderMode === '3d' ? 'url(#shadow3d-lg)' : undefined}>
+                      <rect x={x - 92} y={y - 82} width="184" height="164" rx="18" fill={renderMode === '3d' ? '#f5d0fe55' : '#e9d5ff44'} />
+                      <rect x={x - 92} y={y - 82} width="184" height="164" rx="18" fill="none" stroke="#f3e8ff" strokeWidth={renderMode === '3d' ? 3 : 5} />
+                      {renderMode === '3d' ? <rect x={x - 92} y={y - 82} width="184" height="164" rx="18" fill="url(#sphere-highlight)" /> : null}
+                      <rect x={x - 72} y={y - 66} width="144" height="14" rx="6" fill="#f5d0fe55" />
+                      <ellipse cx={x} cy={y + 92} rx="110" ry={renderMode === '3d' ? 22 : 18} fill={renderMode === '3d' ? '#0f172a77' : '#0f172a55'} />
+                    </g>
+                  )
+                }
+                return (
+                  <g key={id} filter={renderMode === '3d' ? 'url(#shadow3d-lg)' : undefined}>
+                    <ellipse cx={x} cy={y + 46} rx="118" ry={renderMode === '3d' ? 22 : 18} fill={renderMode === '3d' ? '#0f172a77' : '#0f172a55'} />
+                    <ellipse cx={x} cy={y} rx="94" ry="86" fill={renderMode === '3d' ? '#f5d0fe55' : '#e9d5ff44'} />
+                    <ellipse cx={x} cy={y - 1} rx="94" ry="86" fill="none" stroke="#f3e8ff" strokeWidth={renderMode === '3d' ? 3 : 5} />
+                    {renderMode === '3d' ? <ellipse cx={x} cy={y} rx="94" ry="86" fill="url(#sphere-highlight)" /> : null}
+                    <ellipse cx={x} cy={y - 54} rx="66" ry="13" fill="#f5d0fe55" />
+                  </g>
+                )
+              }
+
+              if (actor.type === 'fish') {
+                const pos = actorPathPosition(actor, playbackMs, 310, 205)
+                const fishFill = styleString(actorStyle, 'fill', '#f59e0b')
+                const fishTail = styleString(actorStyle, 'tail', fishFill)
+                if (renderMode === '3d') {
+                  return (
+                    <g key={id} filter="url(#shadow3d)">
+                      <ellipse cx={pos.x} cy={pos.y} rx="26" ry="15" fill={fishFill} />
+                      <ellipse cx={pos.x} cy={pos.y} rx="26" ry="15" fill="url(#sphere-highlight)" />
+                      <polygon points={`${pos.x - 24},${pos.y} ${pos.x - 44},${pos.y - 13} ${pos.x - 44},${pos.y + 13}`} fill={fishTail} />
+                      <circle cx={pos.x + 12} cy={pos.y - 4} r="3" fill="#111827" />
+                      <circle cx={pos.x + 11} cy={pos.y - 5} r="1.2" fill="#ffffff" />
+                      <ellipse cx={pos.x} cy={pos.y + 18} rx="18" ry="3" fill="#00000033" />
+                    </g>
+                  )
+                }
+                return (
+                  <g key={id}>
+                    <ellipse cx={pos.x} cy={pos.y} rx="24" ry="13" fill={fishFill} />
+                    <polygon points={`${pos.x - 23},${pos.y} ${pos.x - 41},${pos.y - 11} ${pos.x - 41},${pos.y + 11}`} fill={fishTail} />
+                    <circle cx={pos.x + 11} cy={pos.y - 3} r="2.4" fill="#111827" />
+                  </g>
+                )
+              }
+
+              if (actor.type === 'cow') {
+                const pos = actorPathPosition(actor, playbackMs, x, y)
+                return (
+                  <g key={id}>
+                    <rect x={pos.x - 34} y={pos.y - 20} width="68" height="38" fill="#f8fafc" rx="10" />
+                    <circle cx={pos.x + 25} cy={pos.y - 14} r="12" fill="#f8fafc" />
+                    <circle cx={pos.x + 18} cy={pos.y - 14} r="2" fill="#111827" />
+                    <circle cx={pos.x + 28} cy={pos.y - 14} r="2" fill="#111827" />
+                    <rect x={pos.x - 30} y={pos.y + 15} width="8" height="18" fill="#f8fafc" rx="2" />
+                    <rect x={pos.x - 10} y={pos.y + 15} width="8" height="18" fill="#f8fafc" rx="2" />
+                    <rect x={pos.x + 10} y={pos.y + 15} width="8" height="18" fill="#f8fafc" rx="2" />
+                    <rect x={pos.x + 26} y={pos.y + 15} width="8" height="18" fill="#f8fafc" rx="2" />
+                  </g>
+                )
+              }
+
+              if (actor.type === 'moon') {
+                return (
+                  <g key={id}>
+                    <circle cx={x} cy={y} r="34" fill="#fef3c7" />
+                    <circle cx={x + 10} cy={y - 8} r="6" fill="#fde68a" />
+                    <circle cx={x - 12} cy={y + 10} r="5" fill="#fde68a" />
+                  </g>
+                )
+              }
+
+              if (actor.type === 'plant') {
+                const sway = actor.animation?.name === 'sway' ? Math.sin(playbackMs / 420) * 7 : 0
+                return (
+                  <g key={id}>
+                    <path d={`M${x},${y} C${x - 10 + sway},${y - 38} ${x + 16 + sway},${y - 74} ${x + 2 + sway},${y - 116}`} stroke="#4ade80" strokeWidth="4" fill="none" />
+                    <path d={`M${x + 4},${y - 8} C${x + 10 + sway},${y - 42} ${x - 8 + sway},${y - 76} ${x + 10 + sway},${y - 110}`} stroke="#22c55e" strokeWidth="3" fill="none" />
+                  </g>
+                )
+              }
+
+              if (actor.type === 'box' || actor.type === 'square' || actor.type === 'rectangle') {
+                const pos = actorPathPosition(actor, playbackMs, x, y)
+                const width = styleNumber(actorStyle, 'width', actor.type === 'rectangle' ? 140 : 96)
+                const height = styleNumber(actorStyle, 'height', actor.type === 'rectangle' ? 84 : width)
+                const fill = styleString(actorStyle, 'fill', '#f59e0b')
+                const stroke = styleString(actorStyle, 'stroke', '#e2e8f0')
+                const lineWidth = styleNumber(actorStyle, 'line_width', 4)
+                if (renderMode === '3d') {
+                  const d = 18
+                  const lx = pos.x - width / 2
+                  const ly = pos.y - height / 2
+                  return (
+                    <g key={id} filter="url(#shadow3d)">
+                      {/* right face */}
+                      <polygon
+                        points={`${lx + width},${ly} ${lx + width + d},${ly - d} ${lx + width + d},${ly - d + height} ${lx + width},${ly + height}`}
+                        fill={fill}
+                        opacity={0.55}
+                      />
+                      {/* top face */}
+                      <polygon
+                        points={`${lx},${ly} ${lx + d},${ly - d} ${lx + width + d},${ly - d} ${lx + width},${ly}`}
+                        fill={fill}
+                        opacity={0.75}
+                      />
+                      {/* front face */}
+                      <rect x={lx} y={ly} width={width} height={height} fill={fill} stroke={stroke} strokeWidth={lineWidth} rx={4} />
+                      <rect x={lx} y={ly} width={width} height={height} fill="url(#cube-face-right)" rx={4} />
+                    </g>
+                  )
+                }
+                return (
+                  <rect
+                    key={id}
+                    x={pos.x - width / 2}
+                    y={pos.y - height / 2}
+                    width={width}
+                    height={height}
+                    fill={fill}
+                    stroke={stroke}
+                    strokeWidth={lineWidth}
+                    rx={actor.type === 'square' ? 8 : 10}
+                  />
+                )
+              }
+
+              if (actor.type === 'circle' || actor.type === 'dot') {
+                const pos = actorPathPosition(actor, playbackMs, x, y)
+                const fill = styleString(actorStyle, 'fill', '#f59e0b')
+                const stroke = styleString(actorStyle, 'stroke', '#e2e8f0')
+                const lineWidth = styleNumber(actorStyle, 'line_width', 3)
+                const radius = styleNumber(actorStyle, 'radius', actor.type === 'dot' ? 8 : 44)
+                if (renderMode === '3d') {
+                  return (
+                    <g key={id} filter="url(#shadow3d)">
+                      <circle cx={pos.x} cy={pos.y} r={radius} fill={fill} stroke={stroke} strokeWidth={lineWidth} />
+                      <circle cx={pos.x} cy={pos.y} r={radius} fill="url(#sphere-highlight)" />
+                      <ellipse cx={pos.x} cy={pos.y + radius + 6} rx={radius * 0.8} ry={4} fill="#00000044" />
+                    </g>
+                  )
+                }
+                return <circle key={id} cx={pos.x} cy={pos.y} r={radius} fill={fill} stroke={stroke} strokeWidth={lineWidth} />
+              }
+
+              if (actor.type === 'line') {
+                const pos = actorPathPosition(actor, playbackMs, x, y)
+                const dx = pos.x - x
+                const dy = pos.y - y
+                const x2 = styleNumber(actorStyle, 'x2', x + 180)
+                const y2 = styleNumber(actorStyle, 'y2', y)
+                const stroke = styleString(actorStyle, 'stroke', '#f59e0b')
+                const lineWidth = styleNumber(actorStyle, 'line_width', 4)
+                if (renderMode === '3d') {
+                  return (
+                    <g key={id} filter="url(#specular-line)">
+                      <line x1={x + dx} y1={y + dy} x2={x2 + dx} y2={y2 + dy} stroke={stroke} strokeWidth={lineWidth + 2} strokeLinecap="round" />
+                      <line x1={x + dx} y1={y + dy} x2={x2 + dx} y2={y2 + dy} stroke="#ffffff44" strokeWidth={Math.max(1, lineWidth - 1)} strokeLinecap="round" />
+                    </g>
+                  )
+                }
+                return <line key={id} x1={x + dx} y1={y + dy} x2={x2 + dx} y2={y2 + dy} stroke={stroke} strokeWidth={lineWidth} />
+              }
+
+              if (actor.type === 'triangle') {
+                const pos = actorPathPosition(actor, playbackMs, x, y)
+                const size = styleNumber(actorStyle, 'size', 100)
+                const fill = styleString(actorStyle, 'fill', '#f59e0b')
+                const stroke = styleString(actorStyle, 'stroke', '#e2e8f0')
+                const lineWidth = styleNumber(actorStyle, 'line_width', 4)
+                const p1 = `${pos.x},${pos.y - size / 2}`
+                const p2 = `${pos.x - size / 2},${pos.y + size / 2}`
+                const p3 = `${pos.x + size / 2},${pos.y + size / 2}`
+                if (renderMode === '3d') {
+                  const d = 14
+                  const rp1 = `${pos.x + d},${pos.y - size / 2 - d}`
+                  const rp3 = `${pos.x + size / 2 + d},${pos.y + size / 2 - d}`
+                  return (
+                    <g key={id} filter="url(#shadow3d)">
+                      {/* right depth face */}
+                      <polygon points={`${p1} ${rp1} ${rp3} ${p3}`} fill={fill} opacity={0.45} />
+                      {/* front face */}
+                      <polygon points={`${p1} ${p2} ${p3}`} fill={fill} stroke={stroke} strokeWidth={lineWidth} />
+                      {/* specular edge */}
+                      <line x1={pos.x} y1={pos.y - size / 2} x2={pos.x - size / 4} y2={pos.y} stroke="#ffffff44" strokeWidth={2} />
+                    </g>
+                  )
+                }
+                return <polygon key={id} points={`${p1} ${p2} ${p3}`} fill={fill} stroke={stroke} strokeWidth={lineWidth} />
+              }
+
+              if (actor.type === 'polyline') {
+                const pos = actorPathPosition(actor, playbackMs, x, y)
+                const dx = pos.x - x
+                const dy = pos.y - y
+                const stroke = styleString(actorStyle, 'stroke', '#f59e0b')
+                const lineWidth = styleNumber(actorStyle, 'line_width', 4)
+                const points = parseStylePoints(actorStyle)
+                if (points.length < 2) {
+                  return null
+                }
+                const polylinePoints = points.map((row) => `${row[0] + dx},${row[1] + dy}`).join(' ')
+                if (renderMode === '3d') {
+                  return (
+                    <g key={id} filter="url(#specular-line)">
+                      <polyline points={polylinePoints} fill="none" stroke={stroke} strokeWidth={lineWidth + 2} strokeLinecap="round" strokeLinejoin="round" />
+                      <polyline points={polylinePoints} fill="none" stroke="#ffffff33" strokeWidth={Math.max(1, lineWidth - 1)} strokeLinecap="round" strokeLinejoin="round" />
+                    </g>
+                  )
+                }
+                return <polyline key={id} points={polylinePoints} fill="none" stroke={stroke} strokeWidth={lineWidth} />
+              }
+
+              if (actor.type === 'polygon') {
+                const pos = actorPathPosition(actor, playbackMs, x, y)
+                const dx = pos.x - x
+                const dy = pos.y - y
+                const fill = styleString(actorStyle, 'fill', '#f59e0b')
+                const stroke = styleString(actorStyle, 'stroke', '#e2e8f0')
+                const lineWidth = styleNumber(actorStyle, 'line_width', 2)
+                const points = parseStylePoints(actorStyle)
+                if (points.length < 3) {
+                  return null
+                }
+                const polygonPoints = points.map((row) => `${row[0] + dx},${row[1] + dy}`).join(' ')
+                if (renderMode === '3d') {
+                  return (
+                    <g key={id} filter="url(#shadow3d)">
+                      <polygon points={polygonPoints} fill={fill} stroke={stroke} strokeWidth={lineWidth} />
+                      <polygon points={polygonPoints} fill="url(#sphere-highlight)" />
+                    </g>
+                  )
+                }
+                return <polygon key={id} points={polygonPoints} fill={fill} stroke={stroke} strokeWidth={lineWidth} />
+              }
+
+              if (actor.type === 'rect') {
+                const pos = actorPathPosition(actor, playbackMs, x, y)
+                const width = styleNumber(actorStyle, 'width', 80)
+                const height = styleNumber(actorStyle, 'height', 50)
+                const fill = styleString(actorStyle, 'fill', '#f59e0b')
+                const stroke = styleString(actorStyle, 'stroke', '#e2e8f0')
+                const lineWidth = styleNumber(actorStyle, 'line_width', 2)
+                if (renderMode === '3d') {
+                  const d = Math.round(Math.min(width, height) * 0.16)
+                  return (
+                    <g key={id} filter="url(#shadow3d)">
+                      <polygon
+                        points={`${pos.x + width},${pos.y} ${pos.x + width + d},${pos.y - d} ${pos.x + width + d},${pos.y - d + height} ${pos.x + width},${pos.y + height}`}
+                        fill={fill} opacity={0.55}
+                      />
+                      <polygon
+                        points={`${pos.x},${pos.y} ${pos.x + d},${pos.y - d} ${pos.x + width + d},${pos.y - d} ${pos.x + width},${pos.y}`}
+                        fill={fill} opacity={0.75}
+                      />
+                      <rect x={pos.x} y={pos.y} width={width} height={height} fill={fill} stroke={stroke} strokeWidth={lineWidth} rx={3} />
+                      <rect x={pos.x} y={pos.y} width={width} height={height} fill="url(#cube-face-right)" rx={3} />
+                    </g>
+                  )
+                }
+                return <rect key={id} x={pos.x} y={pos.y} width={width} height={height} fill={fill} stroke={stroke} strokeWidth={lineWidth} rx={3} />
+              }
+
+              if (actor.type === 'ellipse') {
+                const pos = actorPathPosition(actor, playbackMs, x, y)
+                const rx = styleNumber(actorStyle, 'rx', 50)
+                const ry = styleNumber(actorStyle, 'ry', 30)
+                const fill = styleString(actorStyle, 'fill', '#f59e0b')
+                const stroke = styleString(actorStyle, 'stroke', '#e2e8f0')
+                const lineWidth = styleNumber(actorStyle, 'line_width', 2)
+                const fillAttr = fill === 'none' ? 'none' : fill
+                if (renderMode === '3d') {
+                  return (
+                    <g key={id} filter="url(#shadow3d)">
+                      <ellipse cx={pos.x} cy={pos.y} rx={rx} ry={ry} fill={fillAttr} stroke={stroke} strokeWidth={lineWidth} />
+                      {fillAttr !== 'none' ? <ellipse cx={pos.x} cy={pos.y} rx={rx} ry={ry} fill="url(#sphere-highlight)" /> : null}
+                      <ellipse cx={pos.x} cy={pos.y + ry + 5} rx={rx * 0.75} ry={4} fill="#00000033" />
+                    </g>
+                  )
+                }
+                return <ellipse key={id} cx={pos.x} cy={pos.y} rx={rx} ry={ry} fill={fillAttr} stroke={stroke} strokeWidth={lineWidth} />
+              }
+
+              if (actor.type === 'text') {
+                const textContent = styleString(actorStyle, 'text', '')
+                const fill = styleString(actorStyle, 'fill', '#f8fafc')
+                const fontSize = styleNumber(actorStyle, 'font_size', 16)
+                const anchor = styleString(actorStyle, 'anchor', 'middle') as 'start' | 'middle' | 'end'
+                if (!textContent) return null
+                return (
+                  <text key={id} x={x} y={y} fill={fill} fontSize={fontSize} textAnchor={anchor} dominantBaseline="middle">
+                    {textContent}
+                  </text>
+                )
+              }
+
+              return null
+            })}
+
+            {(bubbleFx?.particles || []).slice(0, 28).map((particle, idx) => {
+              const startX = Number(particle.x || 0.5)
+              const startY = Number(particle.start_y || 0.84)
+              const size = Number(particle.size || 3.5)
+              const rise = Number(particle.rise_per_s || 0.08)
+              const drift = Number(particle.drift || 0)
+              const phase = Number(particle.phase || 0)
+              const timeS = playbackMs / 1000
+              const yNorm = startY - ((timeS * rise + phase) % 0.85)
+              const xNorm = startX + Math.sin((timeS + phase) * 2.4) * drift
+              const cx = 230 + xNorm * 210
+              const cy = 120 + yNorm * 170
+              return <circle key={`bubble-${idx}`} cx={cx} cy={cy} r={size * 0.55} fill="#dbeafe99" stroke="#ffffff88" strokeWidth="0.7" />
+            })}
+
+            {lyricsWords.length ? (
+              <g>
+                {lyricsWords.map((word, idx) => {
+                  const x = 80 + idx * 88
+                  return (
+                    <text key={`lyric-${idx}`} x={x} y={338} textAnchor="middle" fill="#f8fafc" fontSize="20">
+                      {word.text}
+                    </text>
+                  )
+                })}
+                {bounceFx ? (() => {
+                  const startMs = Number(bounceFx.start_ms || scene.lyrics.start_ms || 0)
+                  const stepMs = Math.max(120, Number(bounceFx.step_ms || scene.lyrics.step_ms || 420))
+                  const idx = Math.max(
+                    0,
+                    Math.min(lyricsWords.length - 1, Math.floor((playbackMs - startMs) / stepMs)),
+                  )
+                  const ballX = 80 + idx * 88
+                  const bob = 8 + Math.abs(Math.sin(playbackMs / 160)) * 10
+                  return <circle cx={ballX} cy={328 - bob} r="8" fill="#f43f5e" />
+                })() : null}
+              </g>
+            ) : null}
+
+            <text x="24" y="32" fill="#e2e8f0" fontSize="20">Patch count: {patches.length}</text>
+            <text x="24" y="56" fill="#cbd5e1" fontSize="14">Applied: {appliedCount}</text>
+            <text x="24" y="80" fill="#cbd5e1" fontSize="14">Playback: {Math.round(playbackMs)}ms / {durationMs}ms</text>
+
+            {scene.annotations.slice(-2).map((a, idx) => (
+              <text key={`${a.text}-${idx}`} x="24" y={324 - idx * 20} fill="#f8fafc" fontSize="13">{a.text}</text>
+            ))}
+          </svg>
+        </section>
+
+        <section className="card studio-composer" data-testid="prompt-composer">
+          {/* Accessible status text for e2e tests — visually hidden */}
+          <span
+            className="sr-only"
+            data-testid="turn-status"
+            role="status"
+            aria-live="polite"
+          >
+            {turnStateLabel}
+          </span>
+          <TurnProgressBar
+            turnState={turnState}
+            elapsedMs={turnElapsedMs}
+            activePrompt={activePromptPreview}
+          />
+          <textarea
+            aria-label="prompt input"
+            className="composer-input"
+            rows={3}
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !running) {
+                e.preventDefault()
+                void runTurn()
+              }
+            }}
+            placeholder="Describe a scene… (Ctrl+Enter to run)"
+          />
+          <div className="row composer-actions">
+            <button className="run-btn" onClick={runTurn} disabled={running} data-testid="run-turn-btn">
+              {running ? '⏳ Running…' : '▶ Run Turn'}
+            </button>
+            <button onClick={saveArtifact} disabled={!text} title="Save this result as an artifact">Save</button>
+          </div>
+          {lastError ? <p className="error">{lastError}</p> : null}
+        </section>
+
+        <section className="card studio-log" data-testid="agent-log-panel">
+          <div className="row controls">
+            <h2>Backend Agent Thread</h2>
+            <button onClick={() => setAgentLog([])} disabled={!agentLog.length}>Clear</button>
+          </div>
+          <p className="muted">Live event stream: what the backend agent says and what it is doing.</p>
+          <div className="agent-log-window" role="log" aria-live="polite">
+            {agentLog.length ? (
+              [...agentLog].reverse().map((entry) => (
+                <p className="agent-log-row" key={entry.id}>
+                  <span className="agent-log-time">[{entry.at}]</span>
+                  <span className="agent-log-event">{entry.event_type}</span>
+                  <span className="agent-log-message">{entry.message}</span>
+                </p>
+              ))
+            ) : (
+              <p className="muted">No backend events yet.</p>
+            )}
+          </div>
+        </section>
       </main>
     </div>
   )
