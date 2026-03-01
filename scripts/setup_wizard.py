@@ -185,6 +185,16 @@ def build_configuration(existing: dict[str, str]) -> tuple[dict[str, str], list[
             "OpenClaw session prefix",
             config.get("OPENCOMMOTION_OPENCLAW_SESSION_PREFIX", "opencommotion"),
         )
+        
+        if yes_no("Do you want to automatically register the 'opencommotion-visual' agent and its strict workspace?", default_yes=True):
+            try:
+                import sys
+                import subprocess
+                subprocess.check_call([sys.executable, "scripts/register_openclaw_agent.py", config.get("OPENCOMMOTION_LLM_MODEL", "github-copilot/gpt-4o")])
+                print("Registration complete.")
+            except Exception as e:
+                print(f"Failed to auto-register OpenClaw agent: {e}")
+
     elif llm_choice == "openclaw-openai":
         config["OPENCOMMOTION_OPENCLAW_OPENAI_MODEL"] = ask(
             "OpenClaw OpenAI-compatible model id",
@@ -198,6 +208,16 @@ def build_configuration(existing: dict[str, str]) -> tuple[dict[str, str], list[
             "OpenClaw OpenAI-compatible API key",
             config.get("OPENCOMMOTION_OPENCLAW_OPENAI_API_KEY", ""),
         )
+        
+        if yes_no("Do you want to automatically register the 'opencommotion-visual' agent and its strict workspace?", default_yes=True):
+            try:
+                import sys
+                import subprocess
+                subprocess.check_call([sys.executable, "scripts/register_openclaw_agent.py", config.get("OPENCOMMOTION_OPENCLAW_OPENAI_MODEL", "Qwen/Qwen2.5-7B-Instruct")])
+                print("Registration complete.")
+            except Exception as e:
+                print(f"Failed to auto-register OpenClaw agent: {e}")
+
     else:
         config["OPENCOMMOTION_LLM_MODEL"] = ""
 
