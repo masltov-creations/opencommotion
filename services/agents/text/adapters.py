@@ -494,7 +494,9 @@ class OpenClawCliAdapter:
         if not binary:
             return []
         if binary == "wsl:openclaw":
-            inner = "openclaw " + " ".join(args)
+            def escape_sh(s: str) -> str:
+                return "'" + s.replace("'", "'\"'\"'") + "'"
+            inner = "openclaw " + " ".join(escape_sh(a) for a in args)
             return ["wsl.exe", "bash", "-lc", inner]
         return _cli_invocation(binary, args)
 
@@ -505,29 +507,53 @@ class OpenClawCliAdapter:
         return _timeout_s(OPENCLAW_TIMEOUT_ENV, self.timeout_s)
 
     def generate(self, prompt: str, *, system_prompt_override: str | None = None) -> str:
-        command = self._command([
-            "agent",
-            "--local",
-            "--json",
-            "--session-id",
-            f"{self._session_prefix()}-{uuid4()}",
-            "--message",
-            "-",
-        ])
-        if not command:
-            raise AdapterError(provider=self.name, message=f"{self._bin()} is not installed or not in PATH")
-        prompt_payload = f"{system_prompt_override + '\n' if system_prompt_override else ''}{prompt}"
-        completed = _run_cli(
-            command=command,
-            timeout_s=self._timeout(),
-            retries=_cli_retries(),
-            provider=self.name,
-            input_text=prompt_payload,
-        )
-        text = extract_openclaw_text(completed.stdout or "")
-        if text:
-            return text
-        raise AdapterError(provider=self.name, message="openclaw-cli returned no payload text")
+        import os, tempfile
+        prompt_payload = f"{system_prompt_override + chr(10) if system_prompt_override else ''}{prompt}"
+        agent_name = os.getenv("OPENCOMMOTION_OPENCLAW_AGENT", "").strip()
+        
+        fd, temp_path = tempfile.mkstemp(prefix="opencommotion_", suffix=".txt", text=True)
+        try:
+            with open(fd, "w", encoding="utf-8") as f:
+                f.write(prompt_payload)
+            
+            msg_arg = temp_path
+            if self._resolved_bin() == "wsl:openclaw":
+                # Convert Windows path (C:\temp\...) to WSL path (/mnt/c/temp/...)
+                drive, tail = os.path.splitdrive(temp_path)
+                msg_arg = f"/mnt/{drive.lower().replace(':', '')}/{tail.replace(os.sep, '/').lstrip('/')}"
+            
+            args = [
+                "agent",
+                "--local",
+                "--json",
+                "--session-id",
+                f"{self._session_prefix()}-{uuid4()}",
+                "--message",
+                f"@{msg_arg}",  # @ prefix tells openclaw to read from file
+            ]
+            if agent_name:
+                args.extend(["--agent", agent_name])
+            
+            command = self._command(args)
+            if not command:
+                raise AdapterError(provider=self.name, message=f"{self._bin()} is not installed or not in PATH")
+            
+            completed = _run_cli(
+                command=command,
+                timeout_s=self._timeout(),
+                retries=_cli_retries(),
+                provider=self.name,
+            )
+            text = extract_openclaw_text(completed.stdout or "")
+            if text:
+                return text
+            raise AdapterError(provider=self.name, message="openclaw-cli returned no payload text")
+        finally:
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+
 
     def capabilities(self, probe: bool = False) -> dict[str, Any]:
         binary = self._resolved_bin()

@@ -335,6 +335,7 @@ def _build_llm_visual_script(prompt: str, mode: str) -> list[dict]:
 
     try:
         from services.agents.text.adapters import AdapterError, build_adapters  # noqa: PLC0415
+        import os  # noqa: PLC0415
 
         adapters_map = build_adapters(timeout_s=_llm_timeout_for_visual())
         adapter = adapters_map.get(provider)
@@ -342,7 +343,21 @@ def _build_llm_visual_script(prompt: str, mode: str) -> list[dict]:
             raise LLMEngineError(provider=provider, message=f"Visual adapter '{provider}' not successfully built.")
         system_prompt = _visual_dsl_system_prompt()
         user_request = f"Scene to render: {prompt}\nRender mode: {mode}"
-        raw = (adapter.generate(user_request, system_prompt_override=system_prompt) or "").strip()
+        
+        # Temporarily force the custom visual agent if using openclaw
+        original_agent = os.environ.get("OPENCOMMOTION_OPENCLAW_AGENT")
+        if provider == "openclaw-cli":
+            os.environ["OPENCOMMOTION_OPENCLAW_AGENT"] = "opencommotion-visual"
+        
+        try:
+            raw = (adapter.generate(user_request, system_prompt_override=system_prompt) or "").strip()
+        finally:
+            if provider == "openclaw-cli":
+                if original_agent is not None:
+                    os.environ["OPENCOMMOTION_OPENCLAW_AGENT"] = original_agent
+                else:
+                    os.environ.pop("OPENCOMMOTION_OPENCLAW_AGENT", None)
+
         if not raw:
             raise LLMEngineError(provider=provider, message=f"Provider '{provider}' returned empty response for prompt: {prompt[:80]}")
         commands, warnings = _parse_llm_visual_response(raw)
