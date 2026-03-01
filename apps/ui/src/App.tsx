@@ -439,6 +439,7 @@ export default function App() {
   const [turnStartedAtMs, setTurnStartedAtMs] = useState<number | null>(null)
   const [turnElapsedMs, setTurnElapsedMs] = useState(0)
   const [activePromptPreview, setActivePromptPreview] = useState('')
+  const [videoPanelHeight, setVideoPanelHeight] = useState(320)
 
   const session = useMemo(() => `sess-${Math.random().toString(36).slice(2)}`, [])
   const sceneId = useMemo(() => `scene-${session}`, [session])
@@ -449,6 +450,8 @@ export default function App() {
     return { 'x-api-key': gatewayApiKey }
   }, [])
   const lastTurnRef = useRef('')
+  const canvasStageRef = useRef<HTMLDivElement | null>(null)
+  const resizeSessionRef = useRef<{ pointerId: number; startY: number; startHeight: number } | null>(null)
   const setupMode = useMemo(() => {
     if (typeof window === 'undefined') {
       return false
@@ -1236,6 +1239,36 @@ export default function App() {
     return clean.length > 10 ? clean.slice(0, 10) : clean
   }, [])
 
+  function handleVideoResizePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    resizeSessionRef.current = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      startHeight: videoPanelHeight,
+    }
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  function handleVideoResizePointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    const session = resizeSessionRef.current
+    if (!session || session.pointerId !== event.pointerId) {
+      return
+    }
+    const stage = canvasStageRef.current
+    const minHeight = 180
+    const fallbackMax = 540
+    const maxHeight = stage ? Math.max(minHeight, stage.clientHeight - 190) : fallbackMax
+    const next = session.startHeight + (event.clientY - session.startY)
+    setVideoPanelHeight(Math.max(minHeight, Math.min(maxHeight, Math.round(next))))
+  }
+
+  function handleVideoResizePointerUp(event: React.PointerEvent<HTMLDivElement>) {
+    const session = resizeSessionRef.current
+    if (session && session.pointerId === event.pointerId) {
+      resizeSessionRef.current = null
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+  }
+
   return (
     <div className={`app-shell theme-${colorMode}${funMode ? ' theme-fun' : ''}`}>
       <header className={`brand-bar card ${toolsOpen ? 'settings-open' : ''}`}>
@@ -1608,7 +1641,12 @@ export default function App() {
             ) : null}
           </div>
 
-          <div className="canvas-stage">
+          <div
+            className="canvas-stage"
+            ref={canvasStageRef}
+            style={{ ['--video-panel-height' as string]: `${videoPanelHeight}px` }}
+          >
+          <div className="video-panel">
           <svg className="visual-canvas" viewBox="0 0 720 360" aria-label="visual stage">
             <defs>
               <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
@@ -2097,6 +2135,19 @@ export default function App() {
               <text key={`${a.text}-${idx}`} x="24" y={324 - idx * 20} fill="#f8fafc" fontSize="13">{a.text}</text>
             ))}
           </svg>
+          </div>
+
+          <div
+            className="video-resize-handle"
+            role="separator"
+            aria-label="Resize render panel"
+            aria-orientation="horizontal"
+            onPointerDown={handleVideoResizePointerDown}
+            onPointerMove={handleVideoResizePointerMove}
+            onPointerUp={handleVideoResizePointerUp}
+          >
+            <span aria-hidden="true" />
+          </div>
 
           <section className="canvas-composer-overlay" data-testid="prompt-composer">
             {/* Accessible status text for e2e tests — visually hidden */}

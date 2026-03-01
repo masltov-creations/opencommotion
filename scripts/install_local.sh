@@ -4,6 +4,18 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+detect_app_url() {
+  local host="127.0.0.1"
+  if [[ -n "${WSL_DISTRO_NAME:-}" ]]; then
+    local wsl_ip
+    wsl_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+    if [[ -n "$wsl_ip" ]]; then
+      host="$wsl_ip"
+    fi
+  fi
+  echo "http://$host:8000"
+}
+
 if ! command -v python3 >/dev/null 2>&1; then
   echo "python3 is required" >&2
   exit 1
@@ -33,4 +45,4 @@ echo "Install complete."
 echo "Next steps:"
 echo "  1) opencommotion -setup"
 echo "  2) opencommotion -run"
-echo "  3) open http://127.0.0.1:8000"
+echo "  3) open $(detect_app_url)"

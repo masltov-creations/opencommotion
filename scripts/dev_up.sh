@@ -95,9 +95,9 @@ wait_for_url() {
 }
 
 # ── Resolve bind host and actual ports ──────────────────────────────────────
-# Default to 0.0.0.0 so the app is reachable from Windows when running in WSL.
-# Set OPENCOMMOTION_BIND_HOST=127.0.0.1 to restrict to loopback only.
-BIND_HOST="${OPENCOMMOTION_BIND_HOST:-0.0.0.0}"
+# Default to loopback for predictable localhost behavior.
+# Set OPENCOMMOTION_BIND_HOST=0.0.0.0 when you explicitly want LAN/WSL-IP access.
+BIND_HOST="${OPENCOMMOTION_BIND_HOST:-127.0.0.1}"
 
 if [[ "$UI_MODE" == "dev" ]]; then
   # Auto-scan for free ports so multiple sessions (installed + dev) can coexist
@@ -227,3 +227,18 @@ if [ "$UI_MODE" = "dev" ] && [ -f apps/ui/package.json ]; then
 fi
 
 echo "OpenCommotion stack started (ui-mode: $UI_MODE, gateway: $GATEWAY_PORT, orchestrator: $ORCHESTRATOR_PORT)"
+
+# WSL localhost forwarding health diagnostic (Windows -> WSL via 127.0.0.1)
+if [ -n "${WSL_DISTRO_NAME:-}" ] && [ "$BIND_HOST" = "127.0.0.1" ] && command -v powershell.exe >/dev/null 2>&1; then
+  PS_URI="http://127.0.0.1:${GATEWAY_PORT}/health"
+  FORWARD_CHECK_OUTPUT="$(powershell.exe -NoProfile -Command "try { \$r = Invoke-WebRequest -UseBasicParsing -Uri \"${PS_URI}\" -TimeoutSec 2; Write-Output \$r.StatusCode } catch { Write-Output 'ERR' }" 2>/dev/null | tr -d '\r\n')"
+  if [ "$FORWARD_CHECK_OUTPUT" != "200" ]; then
+    WSL_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+    echo "Warning: Windows localhost forwarding to WSL appears unhealthy for ${PS_URI}." >&2
+    if [ -n "$WSL_IP" ]; then
+      echo "Workaround now: OPENCOMMOTION_BIND_HOST=0.0.0.0 and open http://${WSL_IP}:${GATEWAY_PORT}/" >&2
+    else
+      echo "Workaround now: OPENCOMMOTION_BIND_HOST=0.0.0.0 and open this distro IP directly." >&2
+    fi
+  fi
+fi

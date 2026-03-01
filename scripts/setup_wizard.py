@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import os
+import subprocess
 import shutil
 from pathlib import Path
 
@@ -8,6 +10,19 @@ ROOT = Path(__file__).resolve().parents[1]
 ENV_EXAMPLE_PATH = ROOT / ".env.example"
 ENV_PATH = ROOT / ".env"
 DEFAULT_LOCAL_TRUSTED_IPS = "127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+
+
+def detect_app_url() -> str:
+    host = "127.0.0.1"
+    if os.getenv("WSL_DISTRO_NAME"):
+        try:
+            ip_row = subprocess.check_output(["hostname", "-I"], text=True, stderr=subprocess.DEVNULL).strip()
+            candidate = ip_row.split()[0] if ip_row else ""
+            if candidate:
+                host = candidate
+        except Exception:  # noqa: BLE001
+            pass
+    return f"http://{host}:8000"
 
 
 def parse_env(path: Path) -> dict[str, str]:
@@ -320,7 +335,7 @@ def main() -> int:
         print(f"- {tip}")
     print("- opencommotion -preflight")
     print("- opencommotion -run")
-    print("- open http://127.0.0.1:8000")
+    print(f"- open {detect_app_url()}")
     return 0
 
 

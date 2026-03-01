@@ -7,9 +7,22 @@ cd "$ROOT"
 AUTO_RUN=1
 AUTO_OPEN=1
 AUTO_CLI_SETUP=0
-APP_URL="http://127.0.0.1:8000"
-SETUP_URL="$APP_URL/?setup=1"
 OPENCOMMOTION_CMD="$ROOT/opencommotion"
+
+detect_app_url() {
+  local host="127.0.0.1"
+  if [[ -n "${WSL_DISTRO_NAME:-}" ]]; then
+    local wsl_ip
+    wsl_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+    if [[ -n "$wsl_ip" ]]; then
+      host="$wsl_ip"
+    fi
+  fi
+  echo "http://$host:8000"
+}
+
+APP_URL="$(detect_app_url)"
+SETUP_URL="$APP_URL/?setup=1"
 
 for arg in "$@"; do
   case "$arg" in

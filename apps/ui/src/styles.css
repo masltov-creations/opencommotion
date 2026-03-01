@@ -2166,8 +2166,10 @@ select:focus {
 
 /* ─── Top panel growth behavior (single source of truth) ─────── */
 .brand-bar {
-  min-height: 74px;
+  min-height: 58px;
+  padding: 8px 12px;
   display: block;
+  transition: min-height 240ms var(--motion-ease-standard), padding 220ms var(--motion-ease-standard);
 }
 
 .brand-top-row {
@@ -2175,8 +2177,9 @@ select:focus {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  min-height: 62px;
+  min-height: 46px;
   width: 100%;
+  transition: min-height 240ms var(--motion-ease-standard);
 }
 
 .brand-top-row > .brand-title,
@@ -2270,6 +2273,12 @@ select:focus {
 
 .brand-bar.settings-open {
   overflow: visible;
+  min-height: 74px;
+  padding: 12px 14px;
+}
+
+.brand-bar.settings-open .brand-top-row {
+  min-height: 62px;
 }
 
 .brand-bar > .studio-inspector .inspector-tabs {
@@ -2375,6 +2384,10 @@ select:focus {
 }
 
 .brand-bar {
+  padding: 8px 12px;
+}
+
+.brand-bar.settings-open {
   padding: 12px 14px;
 }
 
@@ -2616,16 +2629,39 @@ select:focus {
   position: static;
   flex: 1;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: minmax(180px, var(--video-panel-height, 320px)) auto auto;
   gap: 10px;
+}
+
+.studio-canvas .canvas-stage .video-panel {
+  min-height: 0;
 }
 
 .studio-canvas .canvas-stage .visual-canvas {
   width: 100%;
-  flex: 1;
-  min-height: 0;
+  height: 100%;
   display: block;
+}
+
+.video-resize-handle {
+  height: 14px;
+  display: grid;
+  place-items: center;
+  cursor: ns-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.video-resize-handle > span {
+  width: 74px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.5);
+}
+
+.video-resize-handle:hover > span {
+  background: rgba(34, 211, 238, 0.75);
 }
 
 .canvas-composer-overlay {
@@ -2770,6 +2806,14 @@ select:focus {
 }
 
 @media (max-width: 900px) {
+  .studio-canvas .canvas-stage {
+    grid-template-rows: minmax(180px, 300px) auto auto;
+  }
+
+  .video-resize-handle {
+    display: none;
+  }
+
   .composer-entry {
     flex-wrap: wrap;
   }

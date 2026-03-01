@@ -1,0 +1,11 @@
+﻿{
+    "WslDistro":  "",
+    "AutoOpenControlOnAutoStart":  true,
+    "TunnelPort":  18789,
+    "ControlUrl":  "http://127.0.0.1:18789/",
+    "EdgePath":  "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+    "WslUser":  "",
+    "TaskName":  "OpenClawTunnelAutoStart",
+    "LaunchMode":  "edge-app",
+    "SshPath":  "ssh.exe"
+}

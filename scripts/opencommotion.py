@@ -484,6 +484,19 @@ def _read_dev_ports() -> tuple[int, int]:
     return gw, orch
 
 
+def _preferred_app_url(path: str = "") -> str:
+    host = "127.0.0.1"
+    if os.getenv("WSL_DISTRO_NAME"):
+        try:
+            ip_row = subprocess.check_output(["hostname", "-I"], text=True, stderr=subprocess.DEVNULL).strip()
+            candidate = ip_row.split()[0] if ip_row else ""
+            if candidate:
+                host = candidate
+        except Exception:  # noqa: BLE001
+            pass
+    return f"http://{host}:8000{path}"
+
+
 def _stack_running() -> bool:
     # Check production ports (run mode: 8000/8001)
     gateway_ok, _ = _check_url("http://127.0.0.1:8000/health")
@@ -626,7 +639,7 @@ def cmd_fresh() -> int:
     if run_code != 0:
         return run_code
 
-    print("Fresh start complete. Open: http://127.0.0.1:8000/?setup=1")
+    print(f"Fresh start complete. Open: {_preferred_app_url('/?setup=1')}")
     return 0
 
 
