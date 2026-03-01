@@ -41,8 +41,10 @@ if ! bash scripts/install_windows_shim.sh; then
   echo "Windows launcher install skipped. You can still run from WSL with: opencommotion -run"
 fi
 
-echo "Install complete."
-echo "Next steps:"
-echo "  1) opencommotion -setup"
-echo "  2) opencommotion -run"
-echo "  3) open $(detect_app_url)"
+if [[ "${OPENCOMMOTION_SUPPRESS_NEXT_STEPS:-}" != "1" ]]; then
+  echo "Install complete."
+  echo "Next steps:"
+  echo "  1) opencommotion -setup"
+  echo "  2) opencommotion -run"
+  echo "  3) open $(detect_app_url)"
+fi

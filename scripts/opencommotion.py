@@ -288,8 +288,18 @@ def _install_ui_dependencies() -> int:
     return _run([npm_exec, "install", "--workspace", "@opencommotion/ui", "--silent"])
 
 
-def cmd_install() -> int:
-    return _run([_bash_executable(), "scripts/install_local.sh"])
+def cmd_install(*, suppress_next_steps: bool = False) -> int:
+    if not suppress_next_steps:
+        return _run([_bash_executable(), "scripts/install_local.sh"])
+    env = _env_with_pythonpath()
+    env["OPENCOMMOTION_SUPPRESS_NEXT_STEPS"] = "1"
+    completed = subprocess.run(
+        [_bash_executable(), "scripts/install_local.sh"],
+        cwd=str(ROOT),
+        check=False,
+        env=env,
+    )
+    return int(completed.returncode)
 
 
 def cmd_setup() -> int:
@@ -553,7 +563,7 @@ def cmd_update() -> int:
         return pull_code
 
     print("Installing/updating dependencies...")
-    install_code = cmd_install()
+    install_code = cmd_install(suppress_next_steps=True)
     if install_code != 0:
         if was_running:
             print("Install failed; restarting previous stack state...")
