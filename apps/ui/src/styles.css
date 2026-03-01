@@ -805,3 +805,602 @@ button:disabled {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+@media (min-width: 1261px) {
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .app-shell {
+    height: 100%;
+    max-height: 100%;
+    padding: 12px 14px;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .brand-bar {
+    position: relative;
+    top: 0;
+    min-height: 70px;
+  }
+
+  .brand-center {
+    min-width: 220px;
+  }
+
+  .turn-status {
+    min-width: 190px;
+    justify-content: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .studio-layout {
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+    grid-template-rows: minmax(320px, 1fr) auto minmax(220px, 0.95fr);
+    overflow: hidden;
+  }
+
+  .studio-canvas,
+  .studio-composer,
+  .studio-log,
+  .studio-inspector {
+    min-height: 0;
+  }
+
+  .stage-top-row {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .stage-meta {
+    margin-left: auto;
+    min-width: 240px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .studio-composer {
+    display: grid;
+    gap: 8px;
+    align-content: start;
+  }
+
+  .studio-composer .composer-input {
+    min-height: 132px;
+    max-height: 220px;
+    resize: vertical;
+  }
+
+  .studio-log .agent-log-window {
+    min-height: 0;
+  }
+}
+
+/* ─── Visual polish pass (desktop + shared controls) ─────────── */
+.card {
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.68), rgba(2, 10, 29, 0.72));
+  box-shadow: 0 14px 34px rgba(2, 6, 23, 0.34);
+}
+
+.brand-bar {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.76), rgba(2, 10, 29, 0.88));
+}
+
+.brand-bar h1 {
+  letter-spacing: 0.01em;
+}
+
+.badge {
+  background: rgba(2, 6, 23, 0.52);
+  border-color: rgba(148, 163, 184, 0.32);
+  color: var(--text-muted);
+}
+
+button {
+  background: rgba(15, 23, 42, 0.8);
+  color: var(--text-main);
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  font-weight: 600;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, filter 120ms ease;
+}
+
+button:hover:not(:disabled) {
+  filter: brightness(1.04);
+  transform: none;
+  border-color: rgba(34, 211, 238, 0.55);
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+  border-color: rgba(34, 211, 238, 0.78);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.16);
+}
+
+.run-btn {
+  color: #082f49;
+  border-color: rgba(34, 211, 238, 0.65);
+  box-shadow: 0 6px 18px rgba(34, 211, 238, 0.2);
+}
+
+input,
+textarea,
+select {
+  background: rgba(2, 6, 23, 0.52);
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  color: var(--text-main);
+}
+
+.studio-canvas .visual-canvas {
+  border-color: rgba(125, 211, 252, 0.42);
+  box-shadow: inset 0 0 0 1px rgba(2, 6, 23, 0.35), 0 8px 22px rgba(2, 6, 23, 0.32);
+}
+
+.studio-composer,
+.studio-log,
+.studio-inspector {
+  background: linear-gradient(180deg, rgba(2, 10, 29, 0.62), rgba(2, 6, 23, 0.76));
+}
+
+.agent-log-window {
+  background: rgba(2, 6, 23, 0.62);
+  border-color: rgba(148, 163, 184, 0.34);
+}
+
+.inspector-tabs button {
+  background: rgba(2, 6, 23, 0.62);
+}
+
+.inspector-tabs button.active {
+  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.22);
+}
+
+/* ─── Modern Delight Theme Layer ─────────────────────────────── */
+:root {
+  --radius-card: 18px;
+  --radius-control: 12px;
+  --surface-soft: rgba(15, 23, 42, 0.56);
+  --surface-strong: rgba(2, 10, 29, 0.86);
+  --border-soft: rgba(148, 163, 184, 0.3);
+  --shadow-soft: 0 12px 28px rgba(2, 6, 23, 0.3);
+  --shadow-strong: 0 18px 46px rgba(2, 6, 23, 0.36);
+}
+
+body {
+  background:
+    radial-gradient(1200px 520px at 8% -8%, rgba(34, 211, 238, 0.2), transparent 64%),
+    radial-gradient(980px 540px at 88% 4%, rgba(245, 158, 11, 0.16), transparent 64%),
+    linear-gradient(160deg, var(--bg-ink) 0%, var(--bg-navy) 44%, var(--bg-cobalt) 100%);
+}
+
+.app-shell {
+  width: min(1740px, 100%);
+}
+
+.card,
+.panel {
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border-soft);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.68), rgba(2, 10, 29, 0.78));
+  box-shadow: var(--shadow-soft);
+}
+
+.brand-bar {
+  border-radius: calc(var(--radius-card) + 2px);
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.8), rgba(2, 10, 29, 0.9));
+  box-shadow: var(--shadow-strong);
+}
+
+.brand-title .eyebrow {
+  letter-spacing: 0.16em;
+}
+
+.brand-bar h1 {
+  font-size: clamp(26px, 3.3vw, 34px);
+  letter-spacing: 0.012em;
+}
+
+.badge {
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.46);
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  color: #dbeafe;
+}
+
+.badge.ok {
+  background: rgba(8, 47, 73, 0.52);
+}
+
+.badge.warn {
+  background: rgba(120, 53, 15, 0.45);
+}
+
+button,
+input,
+textarea,
+select {
+  border-radius: var(--radius-control);
+}
+
+button {
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.9));
+  border: 1px solid rgba(148, 163, 184, 0.42);
+  color: var(--text-main);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+button:hover:not(:disabled) {
+  background: linear-gradient(180deg, rgba(51, 65, 85, 0.92), rgba(15, 23, 42, 0.92));
+  border-color: rgba(34, 211, 238, 0.56);
+}
+
+.run-btn {
+  background: linear-gradient(135deg, var(--accent), var(--accent-alt));
+  color: #082f49;
+  border-color: rgba(34, 211, 238, 0.74);
+  box-shadow: 0 10px 24px rgba(34, 211, 238, 0.25);
+}
+
+.run-btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+input,
+textarea,
+select {
+  background: rgba(2, 6, 23, 0.52);
+  border: 1px solid rgba(148, 163, 184, 0.36);
+  color: var(--text-main);
+}
+
+.composer-input {
+  line-height: 1.45;
+  font-size: 14px;
+}
+
+.studio-canvas .visual-canvas {
+  border-radius: 14px;
+  border: 1px solid rgba(125, 211, 252, 0.46);
+  box-shadow:
+    inset 0 0 0 1px rgba(30, 41, 59, 0.62),
+    0 10px 28px rgba(2, 6, 23, 0.34);
+}
+
+.studio-composer,
+.studio-log,
+.studio-inspector {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.5), rgba(2, 10, 29, 0.62));
+}
+
+.turn-pipeline-wrap {
+  margin-bottom: 12px;
+}
+
+.turn-pipeline-svg {
+  filter: drop-shadow(0 6px 12px rgba(2, 6, 23, 0.35));
+}
+
+.agent-log-window {
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.36);
+  background: rgba(15, 23, 42, 0.48);
+}
+
+.agent-log-event {
+  color: #67e8f9;
+}
+
+.inspector-header {
+  padding: 6px 0 10px;
+  border-bottom-color: rgba(148, 163, 184, 0.3);
+}
+
+.inspector-tabs {
+  gap: 8px;
+}
+
+.inspector-tabs button {
+  background: rgba(2, 6, 23, 0.6);
+  border-color: rgba(148, 163, 184, 0.34);
+  color: #cbd5e1;
+}
+
+.inspector-tabs button.active {
+  border-color: rgba(34, 211, 238, 0.66);
+  background: rgba(8, 47, 73, 0.72);
+  color: #a5f3fc;
+}
+
+.section-block,
+.setup-panel,
+.settings-summary {
+  border-radius: 14px;
+  border-color: rgba(148, 163, 184, 0.28);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.38), rgba(15, 23, 42, 0.5));
+}
+
+.muted {
+  color: #d9e7ff;
+}
+
+@media (min-width: 1261px) {
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .app-shell {
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .studio-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(360px, 1fr) auto minmax(190px, 0.55fr);
+    gap: 16px;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .studio-canvas,
+  .studio-composer,
+  .studio-log {
+    grid-column: 1;
+    min-height: 0;
+  }
+
+  .studio-composer .composer-input {
+    min-height: 180px;
+    max-height: 320px;
+    font-size: 15px;
+  }
+
+  .studio-log .agent-log-window {
+    min-height: 0;
+  }
+
+  .studio-inspector {
+    position: fixed;
+    right: 12px;
+    top: 98px;
+    bottom: 12px;
+    z-index: 40;
+    width: 56px;
+    max-height: none;
+    border-radius: 16px;
+    overflow: hidden;
+    transition: width 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.82), rgba(2, 10, 29, 0.88));
+    box-shadow: 0 14px 36px rgba(2, 6, 23, 0.34);
+  }
+
+  .studio-inspector:hover,
+  .studio-inspector:focus-within,
+  .studio-inspector.open {
+    width: min(460px, 42vw);
+  }
+
+  .studio-inspector .inspector-header {
+    padding: 10px 8px;
+    min-height: 52px;
+  }
+
+  .studio-inspector .inspector-header > div {
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .studio-inspector.collapsed .inspector-header > div,
+  .studio-inspector.collapsed .inspector-panel {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .studio-inspector:hover .inspector-header > div,
+  .studio-inspector:hover .inspector-panel,
+  .studio-inspector:focus-within .inspector-header > div,
+  .studio-inspector:focus-within .inspector-panel,
+  .studio-inspector.open .inspector-header > div,
+  .studio-inspector.open .inspector-panel {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .studio-inspector .inspector-panel {
+    transition: opacity 150ms ease;
+    overflow-y: auto;
+  }
+}
+
+.theme-toggle {
+  min-width: 118px;
+}
+
+.mode-toggle {
+  min-width: 104px;
+}
+
+.app-shell.theme-light {
+  --text-main: #0f172a;
+  --text-muted: #334155;
+  --text-subtle: #475569;
+}
+
+.app-shell.theme-light .card,
+.app-shell.theme-light .panel {
+  border-color: rgba(15, 23, 42, 0.14);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(241, 245, 249, 0.92));
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.1);
+}
+
+.app-shell.theme-light .brand-bar {
+  border-color: rgba(15, 23, 42, 0.14);
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(34, 211, 238, 0.18), transparent 60%),
+    radial-gradient(120% 140% at 100% 0%, rgba(245, 158, 11, 0.16), transparent 62%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(241, 245, 249, 0.98));
+}
+
+.app-shell.theme-light .badge {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(15, 23, 42, 0.18);
+  color: #334155;
+}
+
+.app-shell.theme-light .badge.ok {
+  background: rgba(236, 254, 255, 0.9);
+  color: #0f766e;
+}
+
+.app-shell.theme-light .badge.warn {
+  background: rgba(255, 247, 237, 0.94);
+  color: #9a3412;
+}
+
+.app-shell.theme-light .turn-status {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(15, 23, 42, 0.2);
+  color: #334155;
+}
+
+.app-shell.theme-light button {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(241, 245, 249, 0.95));
+  border-color: rgba(15, 23, 42, 0.2);
+  color: #0f172a;
+}
+
+.app-shell.theme-light button:hover:not(:disabled) {
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(226, 232, 240, 0.95));
+  border-color: rgba(14, 165, 233, 0.5);
+}
+
+.app-shell.theme-light .run-btn {
+  background: linear-gradient(135deg, #22d3ee, #60a5fa);
+  color: #082f49;
+  border-color: rgba(14, 165, 233, 0.62);
+  box-shadow: 0 10px 24px rgba(14, 165, 233, 0.22);
+}
+
+.app-shell.theme-light input,
+.app-shell.theme-light textarea,
+.app-shell.theme-light select {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(15, 23, 42, 0.2);
+  color: #0f172a;
+}
+
+.app-shell.theme-light .studio-composer,
+.app-shell.theme-light .studio-log,
+.app-shell.theme-light .studio-inspector {
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.76), rgba(241, 245, 249, 0.82));
+}
+
+.app-shell.theme-light .studio-canvas .visual-canvas {
+  border-color: rgba(14, 165, 233, 0.36);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(14, 165, 233, 0.16), 0 8px 20px rgba(15, 23, 42, 0.08);
+}
+
+.app-shell.theme-light .agent-log-window {
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(15, 23, 42, 0.16);
+}
+
+.app-shell.theme-light .agent-log-event {
+  color: #0369a1;
+}
+
+.app-shell.theme-light .inspector-tabs button {
+  background: rgba(255, 255, 255, 0.86);
+  border-color: rgba(15, 23, 42, 0.18);
+  color: #334155;
+}
+
+.app-shell.theme-light .inspector-tabs button.active {
+  border-color: rgba(14, 165, 233, 0.54);
+  color: #075985;
+  background: rgba(224, 242, 254, 0.84);
+}
+
+.app-shell.theme-light .section-block,
+.app-shell.theme-light .setup-panel,
+.app-shell.theme-light .settings-summary {
+  border-color: rgba(15, 23, 42, 0.14);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(248, 250, 252, 0.9));
+}
+
+.app-shell.theme-light .muted {
+  color: #334155;
+}
+
+.app-shell.theme-light .error {
+  color: #b91c1c;
+}
+
+.app-shell.theme-fun {
+  --surface-soft: rgba(124, 58, 237, 0.2);
+  --surface-strong: rgba(15, 23, 42, 0.86);
+}
+
+.app-shell.theme-fun .brand-bar {
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(99, 102, 241, 0.34), transparent 56%),
+    radial-gradient(120% 140% at 100% 0%, rgba(236, 72, 153, 0.28), transparent 58%),
+    linear-gradient(180deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.92));
+}
+
+.app-shell.theme-fun .card,
+.app-shell.theme-fun .panel {
+  background:
+    radial-gradient(160% 110% at 10% -10%, rgba(99, 102, 241, 0.24), transparent 48%),
+    radial-gradient(140% 120% at 100% -15%, rgba(236, 72, 153, 0.2), transparent 52%),
+    linear-gradient(180deg, rgba(30, 41, 59, 0.76), rgba(15, 23, 42, 0.86));
+}
+
+.app-shell.theme-fun .run-btn {
+  background: linear-gradient(135deg, #60a5fa, #a78bfa, #f472b6);
+  box-shadow: 0 14px 32px rgba(129, 140, 248, 0.35);
+}
+
+.app-shell.theme-fun .badge.ok {
+  border-color: rgba(129, 140, 248, 0.82);
+  color: #ddd6fe;
+}
+
+.app-shell.theme-fun .inspector-tabs button.active {
+  border-color: rgba(167, 139, 250, 0.82);
+  background: rgba(76, 29, 149, 0.44);
+  box-shadow:
+    inset 0 0 0 1px rgba(129, 140, 248, 0.35),
+    0 0 0 1px rgba(236, 72, 153, 0.2);
+}
+
+.app-shell.theme-fun .visual-canvas {
+  box-shadow:
+    inset 0 0 0 1px rgba(30, 41, 59, 0.58),
+    0 12px 30px rgba(2, 6, 23, 0.36);
+}

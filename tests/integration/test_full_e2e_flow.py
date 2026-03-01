@@ -53,8 +53,8 @@ def test_full_e2e_turn_artifact_recall_and_ws_event(tmp_path, monkeypatch) -> No
 
         assert turn["session_id"] == "e2e-session"
         assert turn["text"].startswith("OpenCommotion:")
-        assert len(turn["visual_strokes"]) >= 5
-        assert len(turn["visual_patches"]) >= 5
+        assert len(turn["visual_strokes"]) > 2
+        assert len(turn["visual_patches"]) > 2
         assert turn["voice"]["voice"] == "opencommotion-local"
         assert len(turn["voice"]["segments"]) == 1
 

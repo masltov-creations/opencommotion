@@ -708,10 +708,34 @@ def _cmd_test_e2e_windows() -> int:
     gateway_process: subprocess.Popen[str] | None = None
     orchestrator_process: subprocess.Popen[str] | None = None
     ui_process: subprocess.Popen[str] | None = None
+    uvicorn_log_config = ROOT / "scripts" / "uvicorn_log_config.json"
+    gateway_cmd = [
+        python_exec,
+        "-m",
+        "uvicorn",
+        "services.gateway.app.main:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000",
+    ]
+    orchestrator_cmd = [
+        python_exec,
+        "-m",
+        "uvicorn",
+        "services.orchestrator.app.main:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8001",
+    ]
+    if uvicorn_log_config.exists():
+        gateway_cmd.extend(["--log-config", str(uvicorn_log_config)])
+        orchestrator_cmd.extend(["--log-config", str(uvicorn_log_config)])
 
     try:
         gateway_process = subprocess.Popen(
-            [python_exec, "-m", "uvicorn", "services.gateway.app.main:app", "--host", "127.0.0.1", "--port", "8000"],
+            gateway_cmd,
             cwd=str(ROOT),
             env=env,
             stdout=gateway_log,
@@ -719,7 +743,7 @@ def _cmd_test_e2e_windows() -> int:
             text=True,
         )
         orchestrator_process = subprocess.Popen(
-            [python_exec, "-m", "uvicorn", "services.orchestrator.app.main:app", "--host", "127.0.0.1", "--port", "8001"],
+            orchestrator_cmd,
             cwd=str(ROOT),
             env=env,
             stdout=orchestrator_log,

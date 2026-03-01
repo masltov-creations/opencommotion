@@ -509,6 +509,8 @@ export default function App() {
   const [runActionLoading, setRunActionLoading] = useState(false)
   const [browserSpeaking, setBrowserSpeaking] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(true)
+  const [colorMode, setColorMode] = useState<'dark' | 'light'>('dark')
+  const [funMode, setFunMode] = useState(false)
   const [debugOpen, setDebugOpen] = useState(false)
   const [agentLog, setAgentLog] = useState<AgentLogEntry[]>([])
   const [settingsTab, setSettingsTab] = useState<'overview' | 'voice' | 'runs' | 'artifacts' | 'setup'>('overview')
@@ -573,6 +575,44 @@ export default function App() {
     }
     window.localStorage.setItem('opencommotion.tools.open', toolsOpen ? '1' : '0')
   }, [toolsOpen, isTestMode])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || isTestMode) {
+      return
+    }
+    const saved = window.localStorage.getItem('opencommotion.ui.color-mode')
+    if (saved === 'dark' || saved === 'light') {
+      setColorMode(saved)
+      return
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+      setColorMode('light')
+    }
+  }, [isTestMode])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || isTestMode) {
+      return
+    }
+    window.localStorage.setItem('opencommotion.ui.color-mode', colorMode)
+  }, [colorMode, isTestMode])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || isTestMode) {
+      return
+    }
+    const saved = window.localStorage.getItem('opencommotion.ui.fun-mode')
+    if (saved === '1' || saved === '0') {
+      setFunMode(saved === '1')
+    }
+  }, [isTestMode])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || isTestMode) {
+      return
+    }
+    window.localStorage.setItem('opencommotion.ui.fun-mode', funMode ? '1' : '0')
+  }, [funMode, isTestMode])
 
   function speakInBrowser(textToSpeak: string): void {
     if (!browserSpeechSupported) {
@@ -1278,7 +1318,7 @@ export default function App() {
   }, [])
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell theme-${colorMode}${funMode ? ' theme-fun' : ''}`}>
       <header className="brand-bar card">
         <div className="brand-title">
           <p className="eyebrow">OpenCommotion Studio</p>
@@ -1301,6 +1341,22 @@ export default function App() {
             <span className="badge" title="UI version">UI: v{uiVersion}</span>
             <span className="badge" title="Build revision">Build: {buildRevisionLabel}</span>
           </div>
+          <button
+            className="mode-toggle"
+            onClick={() => setColorMode((current) => (current === 'dark' ? 'light' : 'dark'))}
+            title="Toggle light or dark mode"
+            aria-label="Toggle light or dark mode"
+          >
+            {colorMode === 'dark' ? '☀ Light' : '🌙 Dark'}
+          </button>
+          <button
+            className="theme-toggle"
+            onClick={() => setFunMode((current) => !current)}
+            aria-pressed={funMode}
+            title="Toggle fun visual mode"
+          >
+            {funMode ? '✨ Calm Mode' : '🎉 Fun Mode'}
+          </button>
           <button className="settings-btn" onClick={() => setToolsOpen((current) => !current)} title="Open settings">
             ⚙ Settings
           </button>
@@ -1894,8 +1950,7 @@ export default function App() {
             </button>
           </div>
 
-          {toolsOpen ? (
-            <div className="inspector-panel">
+          <div className="inspector-panel">
               <section className="setup-panel settings-summary">
                 <h3>System Status</h3>
                 <p className="muted">Build: {buildRevisionLabel}</p>
@@ -2184,7 +2239,6 @@ export default function App() {
               ) : null}
               </div>
             </div>
-          ) : null}
         </aside>
       </main>
     </div>

@@ -170,10 +170,16 @@ fi
 export PYTHONPATH="$ROOT"
 export ORCHESTRATOR_URL="http://127.0.0.1:$ORCHESTRATOR_PORT"
 
-nohup "$PYTHON_BIN" -m uvicorn services.gateway.app.main:app --host "$BIND_HOST" --port "$GATEWAY_PORT" > runtime/logs/gateway.log 2>&1 &
+UVICORN_LOG_CONFIG="$ROOT/scripts/uvicorn_log_config.json"
+UVICORN_LOG_CONFIG_ARGS=()
+if [ -f "$UVICORN_LOG_CONFIG" ]; then
+  UVICORN_LOG_CONFIG_ARGS=(--log-config "$UVICORN_LOG_CONFIG")
+fi
+
+nohup "$PYTHON_BIN" -m uvicorn services.gateway.app.main:app --host "$BIND_HOST" --port "$GATEWAY_PORT" "${UVICORN_LOG_CONFIG_ARGS[@]}" > runtime/logs/gateway.log 2>&1 &
 echo $! > runtime/agent-runs/gateway.pid
 
-nohup "$PYTHON_BIN" -m uvicorn services.orchestrator.app.main:app --host "$BIND_HOST" --port "$ORCHESTRATOR_PORT" > runtime/logs/orchestrator.log 2>&1 &
+nohup "$PYTHON_BIN" -m uvicorn services.orchestrator.app.main:app --host "$BIND_HOST" --port "$ORCHESTRATOR_PORT" "${UVICORN_LOG_CONFIG_ARGS[@]}" > runtime/logs/orchestrator.log 2>&1 &
 echo $! > runtime/agent-runs/orchestrator.pid
 
 if [ "$UI_MODE" = "dev" ] && [ -f apps/ui/package.json ]; then

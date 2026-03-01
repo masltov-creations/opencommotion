@@ -7,6 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ENV_EXAMPLE_PATH = ROOT / ".env.example"
 ENV_PATH = ROOT / ".env"
+DEFAULT_LOCAL_TRUSTED_IPS = "127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 
 
 def parse_env(path: Path) -> dict[str, str]:
@@ -40,7 +41,18 @@ def write_env(path: Path, payload: dict[str, str]) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def choose(prompt: str, options: list[tuple[str, str]], default: int = 0) -> str:
+def choose(
+    prompt: str,
+    options: list[tuple[str, str]],
+    default: int = 0,
+    default_value: str | None = None,
+) -> str:
+    if default_value is not None:
+        for idx, (value, _label) in enumerate(options):
+            if value == default_value:
+                default = idx
+                break
+
     print(f"\n{prompt}")
     for idx, (value, label) in enumerate(options, start=1):
         marker = " (default)" if (idx - 1) == default else ""
@@ -70,6 +82,17 @@ def yes_no(prompt: str, default_yes: bool = True) -> bool:
     return raw in {"y", "yes"}
 
 
+def as_bool(value: str | None, default: bool) -> bool:
+    if value is None:
+        return default
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "y", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "n", "off"}:
+        return False
+    return default
+
+
 def build_configuration(existing: dict[str, str]) -> tuple[dict[str, str], list[str]]:
     config = dict(existing)
     tips: list[str] = []
@@ -88,6 +111,7 @@ def build_configuration(existing: dict[str, str]) -> tuple[dict[str, str], list[
             ("heuristic", "Built-in offline heuristic fallback only"),
         ],
         default=0,
+        default_value=config.get("OPENCOMMOTION_LLM_PROVIDER"),
     )
     config["OPENCOMMOTION_LLM_PROVIDER"] = llm_choice
     config["OPENCOMMOTION_LLM_ALLOW_FALLBACK"] = "true"
@@ -172,6 +196,7 @@ def build_configuration(existing: dict[str, str]) -> tuple[dict[str, str], list[
             ("text-fallback", "Text fallback only (dev/testing)"),
         ],
         default=3,
+        default_value=config.get("OPENCOMMOTION_STT_ENGINE"),
     )
     config["OPENCOMMOTION_STT_ENGINE"] = stt_choice
     if stt_choice == "faster-whisper":
@@ -206,6 +231,7 @@ def build_configuration(existing: dict[str, str]) -> tuple[dict[str, str], list[
             ("tone-fallback", "Tone fallback only (dev/testing)"),
         ],
         default=0,
+        default_value=config.get("OPENCOMMOTION_TTS_ENGINE"),
     )
     config["OPENCOMMOTION_TTS_ENGINE"] = tts_choice
     if tts_choice == "piper":
@@ -247,7 +273,10 @@ def build_configuration(existing: dict[str, str]) -> tuple[dict[str, str], list[
             config.get("OPENCOMMOTION_VOICE_OPENAI_TIMEOUT_S", "20"),
         )
 
-    strict_real = yes_no("Require real STT/TTS engines in runtime (recommended for production)?", default_yes=False)
+    strict_real = yes_no(
+        "Require real STT/TTS engines in runtime (recommended for production)?",
+        default_yes=as_bool(config.get("OPENCOMMOTION_VOICE_REQUIRE_REAL_ENGINES"), False),
+    )
     config["OPENCOMMOTION_VOICE_REQUIRE_REAL_ENGINES"] = "true" if strict_real else "false"
 
     auth_mode = choose(
@@ -256,7 +285,8 @@ def build_configuration(existing: dict[str, str]) -> tuple[dict[str, str], list[
             ("api-key", "API key mode (recommended)"),
             ("network-trust", "Allowlist network trust mode"),
         ],
-        default=0,
+        default=1,
+        default_value=config.get("OPENCOMMOTION_AUTH_MODE"),
     )
     config["OPENCOMMOTION_AUTH_MODE"] = auth_mode
     if auth_mode == "api-key":
@@ -266,8 +296,8 @@ def build_configuration(existing: dict[str, str]) -> tuple[dict[str, str], list[
         )
     else:
         config["OPENCOMMOTION_ALLOWED_IPS"] = ask(
-            "Allowed IP/CIDR list (comma-separated, default local machine only)",
-            config.get("OPENCOMMOTION_ALLOWED_IPS", "127.0.0.1/32,::1/128"),
+            "Allowed IP/CIDR list (comma-separated, default local + private LAN ranges)",
+            config.get("OPENCOMMOTION_ALLOWED_IPS", DEFAULT_LOCAL_TRUSTED_IPS),
         )
 
     return config, tips

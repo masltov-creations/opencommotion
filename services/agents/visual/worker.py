@@ -11,269 +11,12 @@ from typing import Any
 
 logger = logging.getLogger("opencommotion.visual")
 
-COLOR_MAP = {
-    "black": "#111827",
-    "white": "#f8fafc",
-    "red": "#ef4444",
-    "orange": "#f97316",
-    "yellow": "#facc15",
-    "green": "#22c55e",
-    "blue": "#3b82f6",
-    "purple": "#a855f7",
-    "pink": "#ec4899",
-    "teal": "#14b8a6",
-    "cyan": "#22d3ee",
-    "gray": "#9ca3af",
-    "grey": "#9ca3af",
-    "brown": "#8b5e3c",
-}
-
-DRAW_VERBS = ("draw", "sketch", "paint", "render", "illustrate", "show", "create")
-SHAPE_ALIASES = {
-    "box": "box",
-    "square": "square",
-    "rectangle": "rectangle",
-    "rect": "rectangle",
-    "circle": "circle",
-    "ball": "circle",
-    "balls": "circle",
-    "dot": "dot",
-    "line": "line",
-    "triangle": "triangle",
-}
-NOUN_STOP_WORDS = {
-    "a",
-    "an",
-    "the",
-    "this",
-    "that",
-    "these",
-    "those",
-    "draw",
-    "sketch",
-    "paint",
-    "render",
-    "illustrate",
-    "show",
-    "create",
-    "make",
-    "build",
-    "generate",
-    "please",
-    "can",
-    "could",
-    "would",
-    "will",
-    "just",
-    "only",
-    "now",
-    "then",
-    "also",
-    "with",
-    "and",
-    "in",
-    "on",
-    "to",
-    "for",
-    "of",
-    "is",
-    "are",
-    "was",
-    "were",
-    "be",
-    "being",
-    "been",
-    "am",
-    "do",
-    "does",
-    "did",
-    "what",
-    "why",
-    "how",
-    "when",
-    "where",
-    "who",
-    "whom",
-    "which",
-    "explain",
-    "describe",
-    "tell",
-    "about",
-    "me",
-    "my",
-    "your",
-    "our",
-    "their",
-}
-COUNT_WORDS = {
-    "a": 1,
-    "an": 1,
-    "one": 1,
-    "two": 2,
-    "both": 2,
-    "three": 3,
-    "four": 4,
-    "five": 5,
-    "six": 6,
-    "seven": 7,
-    "eight": 8,
-}
-
-def _has_word(prompt: str, word: str) -> bool:
-    return re.search(rf"\b{re.escape(word)}\b", prompt) is not None
+# Removed legacy heuristic maps (COLOR_MAP, DRAW_VERBS, SHAPE_ALIASES, NOUN_STOP_WORDS, COUNT_WORDS)
+# and their associated extraction functions to rely entirely on the schematized LLM contract.
 
 
-def _extract_color(prompt: str, default: str = "#22d3ee") -> tuple[str, str]:
-    for name, hex_color in COLOR_MAP.items():
-        if _has_word(prompt, name):
-            return name, hex_color
-    return "default", default
 
 
-def _extract_shape(prompt: str) -> str:
-    for token, shape in SHAPE_ALIASES.items():
-        if _has_word(prompt, token):
-            return shape
-    return ""
-
-
-def _draw_intent(prompt: str) -> bool:
-    return any(_has_word(prompt, verb) for verb in DRAW_VERBS)
-
-
-def _size_hint(prompt: str, fallback: int = 96) -> int:
-    if "tiny" in prompt or "small" in prompt:
-        fallback = 56
-    elif "large" in prompt or "big" in prompt:
-        fallback = 140
-
-    m = re.search(r"\b(\d{2,3})\s*(?:px|pixel|pixels)\b", prompt)
-    if m:
-        try:
-            fallback = int(m.group(1))
-        except ValueError:
-            pass
-    return max(20, min(260, fallback))
-
-
-def _shape_dimensions(prompt: str, shape: str) -> tuple[int, int]:
-    size = _size_hint(prompt)
-    width = size
-    height = size
-    if shape == "rectangle":
-        width = int(size * 1.5)
-        height = int(size * 0.85)
-    if shape in {"box", "square"}:
-        width = size
-        height = size
-    if "wide" in prompt:
-        width = int(width * 1.3)
-    if "tall" in prompt:
-        height = int(height * 1.3)
-    return max(20, width), max(20, height)
-
-
-def _motion_path(prompt: str, x: int, y: int) -> list[list[int]] | None:
-    if "left to right" in prompt:
-        return [[x - 140, y], [x + 140, y]]
-    if "right to left" in prompt:
-        return [[x + 140, y], [x - 140, y]]
-    if "up and down" in prompt or "top to bottom" in prompt:
-        return [[x, y - 90], [x, y + 90], [x, y - 90]]
-    if "orbit" in prompt:
-        return [[x + 80, y], [x, y - 80], [x - 80, y], [x, y + 80], [x + 80, y]]
-    return None
-
-
-def _build_shape_strokes(prompt: str, mode: str) -> list[dict]:
-    shape = _extract_shape(prompt)
-    if not shape:
-        return []
-    color_name, color_hex = _extract_color(prompt)
-    width, height = _shape_dimensions(prompt, shape)
-    x, y = 260, 200
-    actor_id = f"{shape}_1"
-
-    style: dict = {
-        "fill": color_hex,
-        "stroke": "#e2e8f0",
-        "line_width": max(2, int(width * 0.06)),
-        "width": width,
-        "height": height,
-        "color_name": color_name,
-    }
-
-    if shape in {"circle", "dot"}:
-        style = {
-            "fill": color_hex,
-            "stroke": "#e2e8f0",
-            "line_width": max(2, int(width * 0.05)),
-            "radius": max(8, int(width * (0.5 if shape == "circle" else 0.14))),
-            "color_name": color_name,
-        }
-    elif shape == "line":
-        style = {
-            "stroke": color_hex,
-            "line_width": max(2, int(width * 0.04)),
-            "x2": x + 180,
-            "y2": y,
-            "color_name": color_name,
-        }
-    elif shape == "triangle":
-        style = {
-            "fill": color_hex,
-            "stroke": "#e2e8f0",
-            "line_width": max(2, int(width * 0.05)),
-            "size": width,
-            "color_name": color_name,
-        }
-
-    strokes: list[dict] = [
-        {
-            "stroke_id": "render-mode-shape",
-            "kind": "setRenderMode",
-            "params": {"mode": mode},
-            "timing": {"start_ms": 0, "duration_ms": 80, "easing": "linear"},
-        },
-        {
-            "stroke_id": f"shape-{shape}",
-            "kind": "spawnSceneActor",
-            "params": {
-                "actor_id": actor_id,
-                "actor_type": shape,
-                "x": x,
-                "y": y,
-                "style": style,
-            },
-            "timing": {"start_ms": 60, "duration_ms": 220, "easing": "easeOutCubic"},
-        },
-        {
-            "stroke_id": "shape-note",
-            "kind": "annotateInsight",
-            "params": {"text": f"Drawing a {color_name if color_name != 'default' else ''} {shape}.".strip()},
-            "timing": {"start_ms": 120, "duration_ms": 160, "easing": "linear"},
-        },
-    ]
-
-    motion = _motion_path(prompt, x, y)
-    if motion:
-        strokes.append(
-            {
-                "stroke_id": f"shape-motion-{shape}",
-                "kind": "setActorMotion",
-                "params": {
-                    "actor_id": actor_id,
-                    "motion": {
-                        "name": "path-motion",
-                        "loop": True,
-                        "duration_ms": 3200,
-                        "path_points": motion,
-                    },
-                },
-                "timing": {"start_ms": 220, "duration_ms": 3200, "easing": "easeInOutSine"},
-            }
-        )
-    return strokes
 
 
 def _context_field(context: Any, name: str) -> str | None:
@@ -334,22 +77,7 @@ def _render_mode_from_context(prompt: str, context: Any) -> str:
     return _render_mode(prompt)
 
 
-def _extract_count_for_noun(prompt: str, singular: str, plural: str, *, default: int = 1, max_count: int = 8) -> int:
-    noun_pattern = rf"(?:{re.escape(singular)}|{re.escape(plural)})"
-    match = re.search(rf"\b(\d{{1,2}})\s+(?:\w+\s+){{0,2}}{noun_pattern}\b", prompt)
-    if match:
-        try:
-            return max(1, min(max_count, int(match.group(1))))
-        except ValueError:
-            pass
 
-    for token, value in COUNT_WORDS.items():
-        if re.search(rf"\b{re.escape(token)}\s+(?:\w+\s+){{0,2}}{noun_pattern}\b", prompt):
-            return value
-
-    if _has_word(prompt, plural):
-        return min(2, max_count)
-    return default
 
 
 def _spawn_actor_stroke(
@@ -699,32 +427,6 @@ def _fallback_visual_strokes(prompt: str, mode: str, warnings: list[str]) -> lis
     ]
 
 
-# ---------------------------------------------------------------------------
-# Entity-decomposition: compose known real-world objects from DSL primitives
-# ---------------------------------------------------------------------------
-
-_ENTITY_NOUN_MAP: dict[str, str] = {
-    "rocket": "rocket", "spaceship": "rocket", "spacecraft": "rocket",
-    "house": "house", "home": "house", "building": "building", "tower": "building",
-    "tree": "tree", "forest": "tree",
-    "sun": "sun", "daytime": "sun",
-    "star": "star", "stars": "star",
-    "cloud": "cloud", "clouds": "cloud",
-    "mountain": "mountain", "mountains": "mountain", "hill": "mountain",
-    "car": "car", "vehicle": "car",
-    "flower": "flower", "flowers": "flower",
-    "person": "person", "man": "person", "woman": "person", "human": "person",
-    "bird": "bird", "birds": "bird",
-    "heart": "heart",
-    "wave": "wave", "ocean": "wave", "sea": "wave", "water": "wave",
-    "boat": "boat", "ship": "boat",
-    "sunset": "sunset", "sunrise": "sunset",
-    "moon": "moon",
-    "planet": "planet", "earth": "planet",
-    "butterfly": "butterfly",
-    "snowflake": "snowflake",
-}
-
 
 def _entity_shape_commands(entity: str, color_hex: str, has_motion: bool) -> list[dict]:
     """Return runScreenScript commands for a known entity."""
@@ -983,15 +685,6 @@ def _build_entity_scene_strokes(prompt: str, mode: str) -> list[dict]:
             ]
     return []
 
-
-def _extract_subject_noun(prompt: str) -> str:
-    tokens = re.findall(r"[a-z]+", prompt)
-    for token in tokens:
-        if token not in NOUN_STOP_WORDS:
-            return token
-    return "shape"
-
-
 def _extract_xyz_points(prompt: str) -> tuple[list[list[float]], bool]:
     matches = re.findall(
         r"(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)(?:\s*,\s*(-?\d+(?:\.\d+)?))?",
@@ -1026,17 +719,16 @@ def _seeded_polyline(prompt: str) -> list[list[float]]:
 
 
 def _build_palette_script_strokes(prompt: str, mode: str) -> list[dict]:
-    color_name, color_hex = _extract_color(prompt)
-    subject = _extract_subject_noun(prompt)
+    color_hex = "#22d3ee"
     points, relative = _extract_xyz_points(prompt)
-    line_width = max(2, int(_size_hint(prompt, fallback=96) * 0.045))
+    line_width = max(2, int(96 * 0.045))  # removed _size_hint heuristic
     commands: list[dict] = []
 
     if points:
         commands.append(
             {
                 "op": "polyline",
-                "id": f"{subject}_polyline",
+                "id": "scene_polyline",
                 "relative": relative,
                 "points": points,
                 "color": color_hex,
@@ -1047,7 +739,7 @@ def _build_palette_script_strokes(prompt: str, mode: str) -> list[dict]:
             commands.append(
                 {
                     "op": "polygon",
-                    "id": f"{subject}_polygon",
+                    "id": "scene_polygon",
                     "relative": relative,
                     "points": points,
                     "fill": color_hex,
@@ -1059,7 +751,7 @@ def _build_palette_script_strokes(prompt: str, mode: str) -> list[dict]:
             commands.append(
                 {
                     "op": "move",
-                    "target_id": f"{subject}_polyline",
+                    "target_id": "scene_polyline",
                     "relative": relative,
                     "duration_ms": 3200,
                     "loop": True,
@@ -1072,7 +764,7 @@ def _build_palette_script_strokes(prompt: str, mode: str) -> list[dict]:
             [
                 {
                     "op": "polyline",
-                    "id": f"{subject}_sketch",
+                    "id": "scene_sketch",
                     "relative": True,
                     "points": fallback_points,
                     "color": color_hex,
@@ -1080,7 +772,7 @@ def _build_palette_script_strokes(prompt: str, mode: str) -> list[dict]:
                 },
                 {
                     "op": "dot",
-                    "id": f"{subject}_anchor",
+                    "id": "scene_anchor",
                     "relative": True,
                     "point": fallback_points[0],
                     "radius": max(3, int(line_width * 0.9)),
@@ -1094,7 +786,7 @@ def _build_palette_script_strokes(prompt: str, mode: str) -> list[dict]:
             commands.append(
                 {
                     "op": "move",
-                    "target_id": f"{subject}_sketch",
+                    "target_id": "scene_sketch",
                     "relative": True,
                     "duration_ms": 3200,
                     "loop": True,
@@ -1105,7 +797,6 @@ def _build_palette_script_strokes(prompt: str, mode: str) -> list[dict]:
     if not commands:
         return []
 
-    subject_label = subject if subject != "shape" else "scene"
     return [
         {
             "stroke_id": "render-mode-palette-script",
@@ -1114,7 +805,7 @@ def _build_palette_script_strokes(prompt: str, mode: str) -> list[dict]:
             "timing": {"start_ms": 0, "duration_ms": 80, "easing": "linear"},
         },
         {
-            "stroke_id": f"palette-script-{subject_label}",
+            "stroke_id": "palette-script-scene",
             "kind": "runScreenScript",
             "params": {"program": {"commands": commands}},
             "timing": {"start_ms": 40, "duration_ms": 3600, "easing": "linear"},
@@ -1123,17 +814,9 @@ def _build_palette_script_strokes(prompt: str, mode: str) -> list[dict]:
             "stroke_id": "palette-script-note",
             "kind": "annotateInsight",
             "params": {
-                "text": f"Interface primitives route: no prefab for '{subject_label}', using palette script with point/motion commands."
+                "text": "Fallback generated seeded geometric sketch."
             },
             "timing": {"start_ms": 120, "duration_ms": 200, "easing": "linear"},
-        },
-        {
-            "stroke_id": "palette-script-tool-note",
-            "kind": "annotateInsight",
-            "params": {
-                "text": f"Palette color: {color_name if color_name != 'default' else color_hex}.",
-            },
-            "timing": {"start_ms": 150, "duration_ms": 180, "easing": "linear"},
         },
     ]
 
@@ -1145,22 +828,10 @@ def generate_visual_strokes(prompt: str, context: Any | None = None) -> list[dic
     existing_entity_ids = _context_entity_ids(context)
     strokes: list[dict] = []
 
-    if not strokes:
-        shape_strokes = _build_shape_strokes(p, mode)
-        if shape_strokes:
-            strokes.extend(shape_strokes)
-
-    # LLM-powered freeform visual generation: richer than regex heuristics for novel prompts.
-    if not strokes:
-        llm_strokes = _build_llm_visual_script(p, mode)
-        if llm_strokes:
-            strokes.extend(llm_strokes)
-
-    # Entity-decomposition: compose known real-world objects from DSL primitives when LLM is not available.
-    if not strokes:
-        entity_strokes = _build_entity_scene_strokes(p, mode)
-        if entity_strokes:
-            strokes.extend(entity_strokes)
+    # Prioritize LLM-powered freeform visual generation with rigid schema.
+    llm_strokes = _build_llm_visual_script(p, mode)
+    if llm_strokes:
+        strokes.extend(llm_strokes)
 
     if not strokes and p.strip():
         # Final heuristic fallback: seeded polyline palette script.

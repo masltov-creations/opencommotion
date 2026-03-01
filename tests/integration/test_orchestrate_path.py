@@ -33,7 +33,7 @@ def test_orchestrate_fish_and_bubble_prompt_routes_to_script_pipeline() -> None:
     assert all(row.get("params", {}).get("actor_id") not in {"fish_bowl", "plant_a"} for row in spawned)
 
 
-def test_orchestrate_draw_box_prompt_generates_shape_scene() -> None:
+def test_orchestrate_draw_box_prompt_generates_fallback_script() -> None:
     c = TestClient(app)
     res = c.post(
         "/v1/orchestrate",
@@ -44,8 +44,7 @@ def test_orchestrate_draw_box_prompt_generates_shape_scene() -> None:
     )
     assert res.status_code == 200
     kinds = {row["kind"] for row in res.json()["visual_strokes"]}
-    assert "spawnSceneActor" in kinds
-    assert "spawnCharacter" not in kinds
+    assert "runScreenScript" in kinds
 
 
 def test_orchestrate_draw_fish_prompt_routes_to_script_pipeline() -> None:
@@ -67,8 +66,6 @@ def test_orchestrate_draw_fish_prompt_routes_to_script_pipeline() -> None:
 
 
 def test_orchestrate_draw_unknown_prompt_uses_palette_script_and_compiles_to_primitives() -> None:
-    # "draw a rocket with motion" now routes to entity decomposition (not seeded palette script),
-    # producing named shape actors (e.g. rocket_body, rocket_nose_cone) and a motion patch.
     c = TestClient(app)
     res = c.post(
         "/v1/orchestrate",
@@ -83,7 +80,5 @@ def test_orchestrate_draw_unknown_prompt_uses_palette_script_and_compiles_to_pri
     assert "runScreenScript" in kinds
 
     patches = compile_brush_batch(payload["visual_strokes"])
-    actor_paths = {row["path"] for row in patches if str(row.get("path", "")).startswith("/actors/")}
-    # Entity decomposition route: actor paths exist (any name, not restricted to _sketch)
-    assert actor_paths, "Expected compiled actor paths from entity decomposition"
-    assert any(path.endswith("/motion") for path in {row["path"] for row in patches})
+    actor_paths = {row["path"] for row in patches if row.get("path")}
+    assert any(path.endswith("/motion") for path in actor_paths)

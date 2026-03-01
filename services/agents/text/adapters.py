@@ -129,7 +129,7 @@ def _cli_retries() -> int:
     return min(max(parsed, 1), 5)
 
 
-def _run_cli(command: list[str], timeout_s: float, retries: int, provider: str) -> subprocess.CompletedProcess[str]:
+def _run_cli(command: list[str], timeout_s: float, retries: int, provider: str, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
     last_exc: Exception | None = None
     for attempt in range(1, retries + 1):
         try:
@@ -137,7 +137,9 @@ def _run_cli(command: list[str], timeout_s: float, retries: int, provider: str) 
                 command,
                 capture_output=True,
                 text=True,
+                input=input_text,
                 timeout=timeout_s,
+                encoding="utf-8",
                 check=False,
             )
         except subprocess.TimeoutExpired as exc:
@@ -399,19 +401,20 @@ class CodexCliAdapter:
         binary = self._resolved_bin()
         if not binary:
             raise AdapterError(provider=self.name, message=f"{self._bin()} is not installed or not in PATH")
-        args = ["exec", "--ephemeral", "--json"]
+        args = ["exec", "--json", "--full-auto"]
         model = self._model()
         if model:
             args.extend(["--model", model])
         prompt_payload = prompt
         if system_prompt_override:
             prompt_payload = f"{system_prompt_override}\n{prompt}"
-        args.append(prompt_payload)
+        args.append("-")
         completed = _run_cli(
             command=_cli_invocation(binary, args),
             timeout_s=self._timeout(),
             retries=_cli_retries(),
             provider=self.name,
+            input_text=prompt_payload,
         )
         text = extract_codex_agent_message(completed.stdout or "")
         if text:
@@ -467,13 +470,15 @@ class OpenClawCliAdapter:
             "--session-id",
             session_id,
             "--message",
-            f"{system_prompt_override + '\n' if system_prompt_override else ''}{prompt}",
+            "-",
         ]
+        prompt_payload = f"{system_prompt_override + '\n' if system_prompt_override else ''}{prompt}"
         completed = _run_cli(
             command=_cli_invocation(binary, args),
             timeout_s=self._timeout(),
             retries=_cli_retries(),
             provider=self.name,
+            input_text=prompt_payload,
         )
         text = extract_openclaw_text(completed.stdout or "")
         if text:
